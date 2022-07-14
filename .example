@@ -1,0 +1,19 @@
+# The FCL Dev Wallet needs to know how to talk to the emulator.
+# Because the FCL Dev Wallet is Javascript and uses FCL we talk to the emulator
+# via the emulators grpc-http proxy
+FLOW_ACCESS_NODE=http://localhost:8080
+
+# The FCL Dev Wallet requires a single account to use as a base/starting point.
+# This account will be used to create and manage other accounts.
+# We recommend to use the service account definied in the flow.json file your emulator is using.
+FLOW_ACCOUNT_ADDRESS=0xf8d6e0586b0a20c7
+FLOW_ACCOUNT_KEY_ID=0
+FLOW_ACCOUNT_PRIVATE_KEY=
+FLOW_ACCOUNT_PUBLIC_KEY=
+FLOW_TOKEN_ADDRESS=0x0ae53cb6e3f42a79
+FUSD_TOKEN_ADDRESS=0xf8d6e0586b0a20c7
+KIBBLE_TOKEN_ADDRESS=0xf8d6e0586b0a20c7
+FLOW_FUNGIBLE_ADDRESS=0xee82856bf20e2aa6
+FLOW_NONFUNGIBLE_ADDRESS=0xf8d6e0586b0a20c7
+FLOW_METADATA_VIEW_ADDRESS=0xf8d6e0586b0a20c7
+FLOW_NETOWRK=emulator

@@ -13,6 +13,7 @@ pub contract MelodyError {
     pub case ACCESS_DENIED
     pub case PAYMENT_NOT_REVOKABLE
     pub case NOT_TRANSFERABLE
+    pub case TYPE_MISMATCH
 
   }
 

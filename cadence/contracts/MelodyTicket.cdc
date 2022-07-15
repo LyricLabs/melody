@@ -38,10 +38,6 @@ pub contract MelodyTicket: NonFungibleToken {
     pub event Withdraw(id: UInt64, from: Address?)
     pub event Deposit(id: UInt64, to: Address?)
 
-    pub event ModelUpgraded(modelId: UInt64, dnaId: UInt64, dnaType: UInt64, level: Int)
-    pub event ModelExpanded(modelId: UInt64, dnaId: UInt64, dnaType: UInt64, slotNum: UInt64)
-
-
    
     /**    ____ ___ ____ ___ ____
        *   [__   |  |__|  |  |___
@@ -333,12 +329,11 @@ pub contract MelodyTicket: NonFungibleToken {
 
      
         // UpdateMetadata
-        // Update metadata for a typeId
-        //  type // max // name // description // thumbnail // royalties
+        // Update metadata for a paymentId
         //
-        pub fun updateMetadata(id: UInt64, metadata: {String: AnyStruct}) {
-            MelodyTicket.predefinedMetadata[id] = metadata
-        }
+        // pub fun updateMetadata(id: UInt64, metadata: {String: AnyStruct}) {
+        //     MelodyTicket.predefinedMetadata[id] = metadata
+        // }
 
         pub fun setBaseURI(_ uri: String) {
             MelodyTicket.baseURI = uri
@@ -346,7 +341,16 @@ pub contract MelodyTicket: NonFungibleToken {
     }
 
 
-    access(contract) fun updateMetadata(id: UInt64, metadata: {String: AnyStruct}) {
+    access(account) fun setMetadata(id: UInt64, metadata: {String: AnyStruct}) {
+        MelodyTicket.predefinedMetadata[id] = metadata
+    }
+
+     access(account) fun updateMetadata(id: UInt64, key: String, value: AnyStruct) {
+        pre {
+            MelodyTicket.predefinedMetadata[id] != nil : MelodyError.errorEncode(msg: "Metadata not found", err: MelodyError.ErrorCode.NOT_EXIST)
+        }
+        let metadata = MelodyTicket.predefinedMetadata[id]!
+        metadata[key] = value
         MelodyTicket.predefinedMetadata[id] = metadata
     }
 
@@ -382,7 +386,7 @@ pub contract MelodyTicket: NonFungibleToken {
         self.account.save(<-collection, to: self.CollectionStoragePath)
 
         // create a public capability for the collection
-        self.account.link<&MelodyTicket.Collection{NonFungibleToken.CollectionPublic, MelodyTicket.CollectionPublic, MetadataViews.ResolverCollection}>(
+        self.account.link<&MelodyTicket.Collection{NonFungibleToken.CollectionPublic, MelodyTicket.CollectionPublic, MelodyTicket.CollectionPrivate, MetadataViews.ResolverCollection}>(
             self.CollectionPublicPath,
             target: self.CollectionStoragePath
         )

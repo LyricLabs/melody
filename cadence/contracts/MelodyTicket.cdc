@@ -26,6 +26,7 @@ pub contract MelodyTicket: NonFungibleToken {
 
     pub let CollectionStoragePath: StoragePath
     pub let CollectionPublicPath: PublicPath
+    pub let CollectionPrivatePath: PrivatePath
     pub let MinterStoragePath: StoragePath
 
 
@@ -374,7 +375,7 @@ pub contract MelodyTicket: NonFungibleToken {
         // Set the named paths
         self.CollectionStoragePath = /storage/MelodyTicketCollection
         self.CollectionPublicPath = /public/MelodyTicketCollection
-        // self.CollectionPrivatePath = /private/MelodyTicketCollection
+        self.CollectionPrivatePath = /private/MelodyTicketCollection
         self.MinterStoragePath = /storage/MelodyTicketMinter
         self._reservedFields = {}
 
@@ -386,8 +387,13 @@ pub contract MelodyTicket: NonFungibleToken {
         self.account.save(<-collection, to: self.CollectionStoragePath)
 
         // create a public capability for the collection
-        self.account.link<&MelodyTicket.Collection{NonFungibleToken.CollectionPublic, MelodyTicket.CollectionPublic, MelodyTicket.CollectionPrivate, MetadataViews.ResolverCollection}>(
+        self.account.link<&MelodyTicket.Collection{NonFungibleToken.CollectionPublic, MelodyTicket.CollectionPublic, MetadataViews.ResolverCollection}>(
             self.CollectionPublicPath,
+            target: self.CollectionStoragePath
+        )
+        // create a public capability for the collection
+        self.account.link<&MelodyTicket.Collection{MelodyTicket.CollectionPrivate}>(
+            self.CollectionPrivatePath,
             target: self.CollectionStoragePath
         )
 

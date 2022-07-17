@@ -28,7 +28,7 @@ pub contract Melody {
     pub event ContractInitialized()
     pub event PauseStateChanged(pauseFlag: Bool, operator: Address)
 
-
+    
 
     /**    ____ ___ ____ ___ ____
        *   [__   |  |__|  |  |___
@@ -696,7 +696,7 @@ pub contract Melody {
         let passedSinceCliff = currentTimestamp - timeAfterCliff
 
         var stepPassed = Int8(passedSinceCliff / stepDuration)
-        if stepPassed >= steps {
+        if stepPassed > steps {
             stepPassed = steps
         }
 
@@ -706,7 +706,7 @@ pub contract Melody {
         var claimable = 0.0
 
         if cliffDuration <= timeDelta {
-            claimable = cliffAmount + claimable
+            claimable = cliffAmount
         } 
 
         claimable = claimable + (UFix64(stepPassed) * stepAmount)

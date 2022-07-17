@@ -7,7 +7,7 @@ import { test1Authz, test2Authz, test1Addr, test2Addr } from '../../utils/authz'
 import { buildAndExecScript, fclInit, buildAndSendTrx, sleep } from '../../utils/index'
 import { getBal, transferToken } from '../../scripts/helper.js'
 
-export const userTestCases = () =>
+export const adminTestCases = () =>
   describe('User test cases', () => {
     beforeAll(() => {
       dotenv.config()

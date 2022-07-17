@@ -30,6 +30,9 @@ export const fclInit = () => {
     .put('0xKibble', KIBBLETokenAddr)
     .put('0xFUSD', FUSDTokenAddr)
     .put('0xMetadataViews', metadataViewsAddr)
+    .put('0xMelody', accountAddr)
+    .put('0xMelodyError', accountAddr)
+    .put('0xMelodyTicket', accountAddr)
     .put('grpc.metadata', { api_key: alchemyKey })
 }
 

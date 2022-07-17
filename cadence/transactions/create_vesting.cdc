@@ -1,7 +1,7 @@
 import Melody from 0xMelody
 import FungibleToken from 0xFungibleToken
 
-transaction(identifier: String, revocable:Bool, receiver: Address, config: {String: AnyStruct}) {
+transaction(identifier: String, revocable: Bool, receiver: Address, config: {String: AnyStruct}) {
   var userCertificateCap: Capability<&{Melody.IdentityCertificate}>
   var vault: @FungibleToken.Vault
 

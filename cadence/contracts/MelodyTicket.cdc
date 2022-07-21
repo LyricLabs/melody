@@ -39,6 +39,10 @@ pub contract MelodyTicket: NonFungibleToken {
     pub event Withdraw(id: UInt64, from: Address?)
     pub event Deposit(id: UInt64, to: Address?)
 
+    pub event TicketCreated(id: UInt64)
+    pub event MetadataUpdated(id: UInt64, key: String)
+    pub event MetadataInited(id: UInt64)
+    pub event BaseURIUpdated(before: String, after: String)
    
     /**    ____ ___ ____ ___ ____
        *   [__   |  |__|  |  |___
@@ -302,8 +306,7 @@ pub contract MelodyTicket: NonFungibleToken {
     pub resource NFTMinter {
 
         // mintNFT mints a new NFT with a new ID
-        // and deposit it in the recipients collection using their collection reference
-        pub fun mintNFT(
+        access(account) fun mintNFT(
             name: String,
             description: String,
             metadata: {String: AnyStruct}
@@ -322,7 +325,7 @@ pub contract MelodyTicket: NonFungibleToken {
             )
             // deposit it in the recipient's account using their reference
             // recipient.deposit(token: <- newNFT)
-
+            emit TicketCreated(id: nftId)
             MelodyTicket.totalSupply = nftId
             return <- newNFT
         }
@@ -337,6 +340,7 @@ pub contract MelodyTicket: NonFungibleToken {
         // }
 
         pub fun setBaseURI(_ uri: String) {
+            emit BaseURIUpdated(before: MelodyTicket.baseURI, after: uri )
             MelodyTicket.baseURI = uri
         }
     }
@@ -344,6 +348,8 @@ pub contract MelodyTicket: NonFungibleToken {
 
     access(account) fun setMetadata(id: UInt64, metadata: {String: AnyStruct}) {
         MelodyTicket.predefinedMetadata[id] = metadata
+        // emit
+        emit MetadataInited(id: id)
     }
 
      access(account) fun updateMetadata(id: UInt64, key: String, value: AnyStruct) {
@@ -351,8 +357,12 @@ pub contract MelodyTicket: NonFungibleToken {
             MelodyTicket.predefinedMetadata[id] != nil : MelodyError.errorEncode(msg: "Metadata not found", err: MelodyError.ErrorCode.NOT_EXIST)
         }
         let metadata = MelodyTicket.predefinedMetadata[id]!
+
+        emit MetadataUpdated(id: id, key: key)
         metadata[key] = value
         MelodyTicket.predefinedMetadata[id] = metadata
+        
+
     }
 
     // public funcs

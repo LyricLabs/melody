@@ -27,9 +27,24 @@ pub contract Melody {
 
     pub event ContractInitialized()
     pub event PauseStateChanged(pauseFlag: Bool, operator: Address)
-
-    
-
+    pub event GraceDurationChanged(before: UFix64, after: UFix64)
+    pub event MinimumPaymentChanged(before: UFix64, after: UFix64)
+    pub event CommisionChanged(before: UFix64, after: UFix64)
+    pub event TicketCached(paymentId: UInt64, ticketId: UInt64, receiver: Address)
+    pub event TicketClaimed(paymentId: UInt64, ticketId: UInt64, receiver: Address)
+    pub event PaymentConfigUpdated(paymentId: UInt64, key: String,)
+    pub event PaymentRevoked(paymentId: UInt64, amount: UFix64, operator: Address)
+    pub event PaymentStatusUpdated(paymentId: UInt64, oldStatus: UInt8, newStatus: UInt8)
+    pub event PaymentTypeChanged(paymentId: UInt64, oldType: UInt8, newType: UInt8)
+    pub event PaymentDestroyed(paymentId: UInt64, ticketId: UInt64?)
+    pub event PaymentWithdrawn(paymentId: UInt64, type: UInt8, status: UInt8, amount: UFix64)
+    pub event VaultDeposited(identifier:String, amount: UFix64)
+    pub event VaultCreated(identifier: String)
+    pub event VaultWithdrawn(identifier: String, amount: UFix64, balance: UFix64)
+    pub event PaymentRecordsUpdated(address: Address, before: [UInt64], after: [UInt64])
+    pub event PaymentCreated(paymentId: UInt64, type: UInt8, creator: Address, reciever: Address, amount: UFix64 )
+    pub event TicketRecordChanged(address: Address , before: [UInt64], after: [UInt64])
+    pub event CommisionSended(paymentId: UInt64, identifier: String, amount: UFix64)
     /**    ____ ___ ____ ___ ____
        *   [__   |  |__|  |  |___
         *  ___]  |  |  |  |  |___
@@ -59,7 +74,7 @@ pub contract Melody {
     // global pause: true will stop pool creation
     pub var pause: Bool
 
-    pub var melodyCommission: UFix64
+    pub var melodyCommision: UFix64
 
     pub var minimumPayment: UFix64
 
@@ -93,7 +108,7 @@ pub contract Melody {
         pub var desc: String
         pub let creator: Address
         pub let config: {String: AnyStruct}
-        pub let type: PaymentType
+        pub var type: PaymentType
         pub let vault: @FungibleToken.Vault
         pub var ticket: @MelodyTicket.NFT?
         pub var withdrawn: UFix64
@@ -159,6 +174,8 @@ pub contract Melody {
             self.status = PaymentStatus.CANCELED
             Melody.updateTicketMetadata(id: self.id, key: "status", value: PaymentStatus.CANCELED)
             
+            emit PaymentRevoked(paymentId: self.id, amount: balance, operator: self.creator)
+
             return <- self.vault.withdraw(amount: balance)
         }
 
@@ -167,9 +184,12 @@ pub contract Melody {
             pre {
                 self.ticket == nil : MelodyError.errorEncode(msg: "Ticket already cached", err: MelodyError.ErrorCode.ALREADY_EXIST)
             }
+
+            let receievr = (self.config["receiver"] as? Address?)!
+
+            emit TicketCached(paymentId: self.id, ticketId: ticket.id, receiver: receievr!)
+
             self.ticket <-! ticket
-                    
-            // emit event todo
         }
 
         // cache ticket while receiver do not have receievr resource
@@ -179,6 +199,7 @@ pub contract Melody {
             }
             let ticket <- self.ticket <- nil
             self.config.remove(key: "receiver")
+
             return <- ticket!
         }
 
@@ -187,21 +208,27 @@ pub contract Melody {
             pre {
                 self.config[key] != nil : MelodyError.errorEncode(msg: "Not set vaule", err: MelodyError.ErrorCode.NOT_EXIST)
             }
+            let oldVal = self.config[key]
             self.config[key] = value
+
+            emit PaymentConfigUpdated(paymentId: self.id, key: key)
+
         }
 
         // cache ticket while receiver do not have receievr resource
         access(contract) fun changeRevokable() {
 
-            var type = self.type
-
-            if type == PaymentType.REVOCABLE_STREAM {
+            let oldType = self.type
+            var type = oldType
+            if oldType == PaymentType.REVOCABLE_STREAM {
                 type = PaymentType.STREAM
-            } else if type == PaymentType.REVOCABLE_VESTING {
+            } else if oldType == PaymentType.REVOCABLE_VESTING {
                 type = PaymentType.VESTING
             } 
+            assert(oldType != type, message: MelodyError.errorEncode(msg: "Canot set same type", err: MelodyError.ErrorCode.INVALID_PARAMETERS))
+            self.type = type
 
-            // emit event todo
+            emit PaymentTypeChanged(paymentId: self.id, oldType: oldType.rawValue, newType: type.rawValue)
         }
 
 
@@ -210,20 +237,33 @@ pub contract Melody {
             pre {
                 self.status != PaymentStatus.COMPLETE && self.status != PaymentStatus.CANCELED : MelodyError.errorEncode(msg: "Cannot update close payment", err: MelodyError.ErrorCode.WRONG_LIFE_CYCLE_STATE)
             }
+            self.updateStatus()
+            
+            assert(self.status == PaymentStatus.ACTIVE, message:  MelodyError.errorEncode(msg: "Cannot withdraw from inactive payment", err: MelodyError.ErrorCode.WRONG_LIFE_CYCLE_STATE))
+            self.withdrawn = self.withdrawn + amount
+            // todo emit
+            return <- self.vault.withdraw(amount: amount)
+        }
+
+        access(self) fun updateStatus() {
+
             let currentTimestamp = getCurrentBlock().timestamp
             let startTimestamp = (self.config["startTimestamp"] as? UFix64)!
             let endTimestamp = (self.config["endTimestamp"] as? UFix64)!
+            
+            let oldStatus = self.status
+            var status = oldStatus
             // update status when stream start
             if self.type == PaymentType.STREAM || self.type == PaymentType.REVOCABLE_STREAM {
                 if self.status == PaymentStatus.UPCOMING && currentTimestamp >= startTimestamp {
-                    self.status = PaymentStatus.ACTIVE
+                    status = PaymentStatus.ACTIVE
                 }
                 if self.status == PaymentStatus.ACTIVE && currentTimestamp >= endTimestamp {
-                    self.status = PaymentStatus.COMPLETE
+                    status = PaymentStatus.COMPLETE
                 }
             } else { // update vesing status
                 if self.status == PaymentStatus.UPCOMING && currentTimestamp >= startTimestamp {
-                    self.status = PaymentStatus.ACTIVE
+                    status = PaymentStatus.ACTIVE
                 }
                 let startTimestamp = (self.config["startTimestamp"] as? UFix64)!
                 let stepDuration = (self.config["stepDuration"] as? UFix64)!
@@ -231,26 +271,34 @@ pub contract Melody {
                 let cliffDuration = (self.config["cliffDuration"] as? UFix64) ?? 0.0
                 let endVestingTimestamp = startTimestamp + cliffDuration + UFix64(steps) * stepDuration
                 if self.status == PaymentStatus.ACTIVE && currentTimestamp >= endVestingTimestamp {
-                    self.status = PaymentStatus.COMPLETE
+                    status = PaymentStatus.COMPLETE
                 }
             }
 
-            // todo vesting state change
+            self.status = status
+            if status == PaymentStatus.COMPLETE {
+                Melody.updateTicketMetadata(id: self.id, key: "status", value: PaymentStatus.COMPLETE)
+            }
+            if status == PaymentStatus.ACTIVE {
+                Melody.updateTicketMetadata(id: self.id, key: "status", value: PaymentStatus.COMPLETE)
+            }
 
-            
-            assert(self.status == PaymentStatus.ACTIVE, message:  MelodyError.errorEncode(msg: "Cannot withdraw from inactive payment", err: MelodyError.ErrorCode.WRONG_LIFE_CYCLE_STATE))
-            // assert(self.getRevocable() == true, message: MelodyError.errorEncode(msg: "Cannot withdraw from non-revocable payment", err: MelodyError.ErrorCode.PAYMENT_NOT_REVOKABLE))
-            self.withdrawn = self.withdrawn + amount
-            // todo emit
-            return <- self.vault.withdraw(amount: amount)
+            emit PaymentStatusUpdated(paymentId: self.id, oldStatus: oldStatus.rawValue, newStatus: status.rawValue)
+
         }
 
         destroy (){
             pre {
                 self.status == PaymentStatus.COMPLETE && self.status == PaymentStatus.CANCELED : MelodyError.errorEncode(msg: "Cannot destroy active payment", err: MelodyError.ErrorCode.WRONG_LIFE_CYCLE_STATE)
+                self.vault.balance > 0.0 : MelodyError.errorEncode(msg: "Please withdraw the remaining funds", err: MelodyError.ErrorCode.WRONG_LIFE_CYCLE_STATE)
             }
+
+            emit PaymentDestroyed(paymentId: self.id, ticketId: self.ticket?.id)
+
             destroy self.vault
             destroy self.ticket
+
+
         }
     }
 
@@ -277,20 +325,21 @@ pub contract Melody {
             emit PauseStateChanged(pauseFlag: flag, operator: self.owner!.address)
         }
 
-        pub fun setCommission(_ commission: UFix64) {
-            Melody.melodyCommission = commission
+        pub fun setCommision(_ commision: UFix64) {
 
-            // todo emit event
+            emit CommisionChanged(before: Melody.melodyCommision, after: commision)
+            Melody.melodyCommision = commision
         }
 
         pub fun setMinimumPayment(_ min: UFix64) {
-          
+
+            emit MinimumPaymentChanged(before: Melody.minimumPayment, after: min)
             Melody.minimumPayment = min
             // todo emit event
         }
 
         pub fun setGraceDuration(_ duration: UFix64) {
-          
+            emit GraceDurationChanged(before: Melody.graceDuration, after: duration)
             Melody.graceDuration = duration
             // todo emit event
         }
@@ -312,39 +361,45 @@ pub contract Melody {
         }
 
 
-        pub fun setVault(_ vault: @FungibleToken.Vault) {
-            let identifier = vault.getType().identifier
-            assert(self.vaults[identifier] == nil, message: MelodyError.errorEncode(msg: "Vault already exists", err: MelodyError.ErrorCode.ALREADY_EXIST))
-            self.vaults[identifier] <-! vault
-            // todo emit event
-        }
+        // pub fun setVault(_ vault: @FungibleToken.Vault) {
+        //     let identifier = vault.getType().identifier
+        //     assert(self.vaults[identifier] == nil, message: MelodyError.errorEncode(msg: "Vault already exists", err: MelodyError.ErrorCode.ALREADY_EXIST))
+        //     self.vaults[identifier] <-! vault
+        //     // todo emit event
+        // }
 
         pub fun deposit(_ vault: @FungibleToken.Vault) {
             let identifier = vault.getType().identifier
             // todo emit event
             if self.vaults[identifier] == nil {
                 self.vaults[identifier] <-! vault
+                emit VaultCreated(identifier: identifier)
             } else {
                 let vaultRef = (&self.vaults[identifier] as &FungibleToken.Vault?)!
+                emit VaultDeposited(identifier:identifier, amount: vault.balance)
                 vaultRef.deposit(from: <- vault)
             }
 
         }
 
         pub fun withdraw(_ key: String?, amount: UFix64?): @{String: FungibleToken.Vault} {
-            let vaults: @{String:FungibleToken.Vault} <- {}
+            let vaults: @{String: FungibleToken.Vault} <- {}
             var keys: [String] = []
-            if key != nil {
+            if key != nil && key != "" {
                 let vaultRef = (&vaults[key!] as &FungibleToken.Vault?)!
-                let withdrawAmount = amount ?? vaultRef.balance
+                let balance = vaultRef.balance
+                let withdrawAmount = amount ?? balance
                 vaults[key!] <-! vaultRef!.withdraw(amount: withdrawAmount)
+                emit VaultWithdrawn(identifier: key!, amount: withdrawAmount, balance: balance- withdrawAmount)
                 return <- vaults
             } else {
                 keys = self.vaults.keys
                 for k in keys {
                     let vaultRef = (&vaults[k] as &FungibleToken.Vault?)!
-                    let withdrawAmount = amount ?? vaultRef.balance
+                    let balance = vaultRef.balance
+                    let withdrawAmount = amount ?? balance
                     vaults[k] <-! vaultRef!.withdraw(amount: withdrawAmount)
+                    emit VaultWithdrawn(identifier: key!, amount: withdrawAmount, balance: balance- withdrawAmount)
                 }
                 return <- vaults
             }
@@ -387,8 +442,11 @@ pub contract Melody {
     // set payments records
     access(account) fun updatePaymentsRecords(address: Address, id: UInt64) {
         let ids = self.paymentsRecords[address] ?? []
-        ids.append(id)
-        self.paymentsRecords[address] = ids
+        var newIds = ids
+        newIds.append(id)
+        self.paymentsRecords[address] = newIds
+        
+        emit PaymentRecordsUpdated(address: address, before: ids, after: newIds)
     }
 
 
@@ -423,6 +481,7 @@ pub contract Melody {
         let recipient = getAccount(reciever).getCapability<&{NonFungibleToken.CollectionPublic}>(MelodyTicket.CollectionPublicPath)
 
         // todo validate config
+        let balance = vault.balance
         let currentTimestamp = getCurrentBlock().timestamp
         let startTimestamp = (config["startTimestamp"] as? UFix64)!
         let endTimestamp = (config["endTimestamp"] as? UFix64)!
@@ -469,7 +528,7 @@ pub contract Melody {
             self.updateUserTicketsRecord(address: reciever, id:paymentRef.id, isDelete: false )
         }
         // emit event todo
-
+        emit PaymentCreated(paymentId: paymentRef.id, type: type.rawValue, creator: creator, reciever: reciever, amount: balance )
     }
 
      /// create vesting
@@ -548,7 +607,7 @@ pub contract Melody {
             self.updateUserTicketsRecord(address: reciever, id:paymentRef.id, isDelete: false )
         }
         // emit event todo
-
+        emit PaymentCreated(paymentId: paymentRef.id, type: type.rawValue, creator: creator, reciever: reciever, amount: balance )
     }
 
     // todo update
@@ -570,6 +629,20 @@ pub contract Melody {
         
         
     // }
+
+
+    // change payment revokable to non-revokable
+    pub fun canclePayment(userCertificateCap: Capability<&{Melody.IdentityCertificate}>, paymentId: UInt64): @FungibleToken.Vault {
+        pre {
+            self.paymentsRecords[userCertificateCap.borrow()!.owner!.address]!.contains(paymentId): MelodyError.errorEncode(msg: "Access denied when cancle payment", err: MelodyError.ErrorCode.ACCESS_DENIED)
+
+        }
+        let paymentRef = self.account.borrow<&Admin>(from: self.AdminStoragePath)!.getPayment(paymentId)
+
+        assert(paymentRef.status != PaymentStatus.CANCELED || paymentRef.status != PaymentStatus.COMPLETE , message: MelodyError.errorEncode(msg: "Payment already canceled", err: MelodyError.ErrorCode.WRONG_LIFE_CYCLE_STATE))
+        assert(paymentRef.type != PaymentType.VESTING && paymentRef.type != PaymentType.STREAM, message: MelodyError.errorEncode(msg: "Cannot cancel non-revoked payment", err: MelodyError.ErrorCode.WRONG_LIFE_CYCLE_STATE))
+        return <- paymentRef.revokePayment(userCertificateCap: userCertificateCap)
+    }
 
     // change payment revokable to non-revokable
     pub fun changeRevokable(userCertificateCap: Capability<&{Melody.IdentityCertificate}>, paymentId: UInt64) {
@@ -611,6 +684,9 @@ pub contract Melody {
         
 
         self.updateUserTicketsRecord(address: recipient, id:paymentRef.id, isDelete: true )
+        let ticketRef = &paymentRef.ticket as &MelodyTicket.NFT?
+
+        emit TicketClaimed(paymentId: paymentRef.id, ticketId: ticketRef!.id, receiver: recipient )
 
         return <- paymentRef.claimTicket()
     }
@@ -664,8 +740,9 @@ pub contract Melody {
         let withdrawVault <- paymentRef.withdraw(withdrawnAmount)
 
         // commision cut
-        self.cutCommision(&withdrawVault as &FungibleToken.Vault)
-        // todo emit event
+        self.cutCommision(&withdrawVault as &FungibleToken.Vault, paymentId: paymentRef.id)
+        
+        emit PaymentWithdrawn(paymentId: paymentRef.id, type: paymentType.rawValue, status: paymentStatus.rawValue, amount: withdrawnAmount)
 
         return <- withdrawVault
     }
@@ -717,19 +794,20 @@ pub contract Melody {
         let withdrawVault <- paymentRef.withdraw(canClaimAmount)
 
         // commision cut
-        self.cutCommision(&withdrawVault as &FungibleToken.Vault)
+        self.cutCommision(&withdrawVault as &FungibleToken.Vault, paymentId: paymentRef.id)
         // todo emit event
 
         return <- withdrawVault
     }
 
 
-    access(contract) fun cutCommision(_ vaultRef: &FungibleToken.Vault){
-        if self.melodyCommission > 0.0 {
+    access(contract) fun cutCommision(_ vaultRef: &FungibleToken.Vault, paymentId: UInt64){
+        if self.melodyCommision > 0.0 {
             let adminRef = self.account.borrow<&Admin>(from: self.AdminStoragePath)!
-            let commisionAmount = vaultRef.balance * self.melodyCommission
+            let commisionAmount = vaultRef.balance * self.melodyCommision
+            emit CommisionSended(paymentId: paymentId, identifier: vaultRef.getType().identifier, amount: commisionAmount)
             adminRef.deposit(<- vaultRef.withdraw(amount: commisionAmount))
-            // todo emit event
+
         }
     }
 
@@ -738,18 +816,20 @@ pub contract Melody {
                 isDelete == true && Melody.userTicketRecords[address]!.contains(id) : MelodyError.errorEncode(msg: "Delete failed: record not existed", err: MelodyError.ErrorCode.INVALID_PARAMETERS)
                 isDelete == false && Melody.userTicketRecords[address]!.contains(id) == false: MelodyError.errorEncode(msg: "Add failed: record already existed", err: MelodyError.ErrorCode.ALREADY_EXIST)
         }
+
         let userTicketRecords = Melody.userTicketRecords[address] ?? []
+        var newRecords = userTicketRecords
         if isDelete {
-            let index = userTicketRecords.firstIndex(of: id)!
-            userTicketRecords.remove(at: index)
+            let index = newRecords.firstIndex(of: id)!
+            newRecords.remove(at: index)
 
         } else {
-            userTicketRecords.append(id)
+            newRecords.append(id)
         }
 
-        Melody.userTicketRecords[address] = userTicketRecords
-
-        // todo emit event
+        Melody.userTicketRecords[address] = newRecords
+        // todo
+        emit TicketRecordChanged(address: address , before: userTicketRecords, after: newRecords)
 
     }
 
@@ -789,7 +869,7 @@ pub contract Melody {
         self.userTicketRecords = {}
         self.paymentsRecords = {}
 
-        self.melodyCommission = 0.01
+        self.melodyCommision = 0.01
 
         self.minimumPayment = 0.1
 

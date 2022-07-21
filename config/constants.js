@@ -72,7 +72,7 @@ export const paths = {
     transferKibble: buildPath('transfer_kibble.cdc'),
     setupAccount: buildPath('setup_account.cdc'),
     //---== init
-    setCommision: buildPath('set_commission.cdc'),
+    setCommision: buildPath('set_commision.cdc'),
     setGraceDuration: buildPath('set_grace_duration.cdc'),
     setMinimumPayment: buildPath('set_minimum_payment.cdc'),
     setPause: buildPath('set_pause.cdc'),

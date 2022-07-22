@@ -135,6 +135,19 @@ export const adminTestCases = () =>
       res = await buildAndExecScript('getUserUnclaimTickets', [fcl.arg(test1Addr, t.Address)])
       console.log(res)
       expect(res.length).toBe(1)
+
+      res = await buildAndSendTrx('createStream', [
+        fcl.arg('fusdVault', t.String),
+        fcl.arg('1.0', t.UFix64),
+        fcl.arg(true, t.Bool),
+        fcl.arg(false, t.Bool),
+        fcl.arg((Number(currentTimestamp) + 250).toFixed(2), t.UFix64),
+        fcl.arg((Number(currentTimestamp) + 550).toFixed(2), t.UFix64),
+        fcl.arg(test1Addr, t.Address),
+      ])
+
+      expect(res).not.toBeNull()
+      expect(res.status).toBe(4)
     })
 
     test('User claim ticket', async () => {
@@ -144,10 +157,11 @@ export const adminTestCases = () =>
       expect(res.status).toBe(4)
 
       res = await buildAndExecScript('getUserUnclaimTickets', [fcl.arg(test1Addr, t.Address)])
-      expect(res.length).toBe(0)
+      expect(res.length).toBe(1)
 
       res = await buildAndExecScript('getUserIncomePayment', [fcl.arg(test1Addr, t.Address)])
       expect(res.length).toBe(1)
+      console.log(res)
     })
 
     test('test minimum amount', async () => {
@@ -185,7 +199,7 @@ export const adminTestCases = () =>
       expect(res.status).toBe(4)
     })
 
-    test('test melody commision ratio', async () => {
+    test('test melody commision ratio set', async () => {
       let res = await buildAndExecScript('getCommision')
       expect(Number(res)).toBe(0.01)
 

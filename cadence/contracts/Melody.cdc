@@ -144,8 +144,10 @@ pub contract Melody {
         pub fun getInfo(): {String: AnyStruct} {
             // todo
             let metadata: {String: AnyStruct} = {}
+            metadata["id"] = self.id
             metadata["balance"] = self.vault.balance
             metadata["withdrawn"] = self.withdrawn
+            metadata["amount"] = self.config["amount"]
             metadata["claimable"] = self.getClaimable()
             metadata["type"] = self.type.rawValue // todo
             metadata["status"] = self.status.rawValue
@@ -251,9 +253,12 @@ pub contract Melody {
                 }
                 if currentTimestamp > endTimestamp {
                     timeDelta = endTimestamp - startTimestamp
+                } else {
+                    timeDelta = currentTimestamp - startTimestamp
                 }
                 let streamed = timeDelta / (endTimestamp - startTimestamp) * (vaultBalance + withdrawn)
                  claimable = streamed
+                 
             } else {
 
                 let cliffDuration = (config["cliffDuration"] as? UFix64) ?? 0.0
@@ -562,10 +567,12 @@ pub contract Melody {
         let name = "Melody".concat(" stream ticket#").concat(paymentId.toString())
         // todo
         let metadata: {String: AnyStruct} = {}
-        metadata["paymentInfo"] = config
+        // metadata["paymentInfo"] = config
         metadata["paymentType"] = type.rawValue
         metadata["paymentId"] = paymentId
         metadata["status"] = PaymentStatus.UPCOMING.rawValue
+        metadata["receiver"] = receiver
+        
         if transferable == false {
             metadata["transferable"] = false
         }
@@ -645,6 +652,8 @@ pub contract Melody {
         metadata["paymentType"] = type.rawValue
         metadata["paymentId"] = paymentId
         metadata["status"] = PaymentStatus.UPCOMING.rawValue
+        metadata["receiver"] = receiver
+
         if transferable == false {
             metadata["transferable"] = false
         }
@@ -718,9 +727,9 @@ pub contract Melody {
             self.paymentsRecords[userCertificateCap.borrow()!.owner!.address]!.contains(paymentId): MelodyError.errorEncode(msg: "Access denied when update payment info", err: MelodyError.ErrorCode.ACCESS_DENIED)
         }
         let paymentRef = self.account.borrow<&Admin>(from: self.AdminStoragePath)!.getPayment(paymentId)
-        let transferable = paymentRef.config["transferable"] as? Bool ?? true
+        let transferable = (paymentRef.config["transferable"] as? Bool?)! ?? true
         assert(paymentRef.status != PaymentStatus.CANCELED || paymentRef.status != PaymentStatus.COMPLETE , message: MelodyError.errorEncode(msg: "Cannot change transferable with canceled payment", err: MelodyError.ErrorCode.WRONG_LIFE_CYCLE_STATE))
-        assert(transferable == false, message: MelodyError.errorEncode(msg: "Only allow no-transferable to transferable", err: MelodyError.ErrorCode.WRONG_LIFE_CYCLE_STATE))
+        assert(transferable == false, message: MelodyError.errorEncode(msg: "Only allow non-transferable to transferable", err: MelodyError.ErrorCode.WRONG_LIFE_CYCLE_STATE))
         paymentRef.updateConfig("transferable", value: true)
         let nftMetadata = MelodyTicket.getMetadata(paymentId)
         Melody.updateTicketMetadata(id: paymentId, key: "paymentInfo", value: paymentRef.config)

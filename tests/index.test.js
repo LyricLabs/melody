@@ -4,4 +4,6 @@ import { vestingTestCases } from './cases/vesting'
 
 describe('Cadence test case', () => {
   adminTestCases()
+  streamTestCases()
+  // vestingTestCases()
 })

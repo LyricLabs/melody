@@ -1,6 +1,6 @@
 import Melody from 0xMelody
 
-transaction(userCertificateCap: Capability<&{Melody.IdentityCertificate}>, id: UInt64) {
+transaction(id: UInt64) {
   var userCertificateCap: Capability<&{Melody.IdentityCertificate}>
 
   prepare(signer: AuthAccount) {

@@ -233,9 +233,6 @@ pub contract MelodyTicket: NonFungibleToken {
 
         // withdraw removes an NFT from the collection and moves it to the caller
         pub fun withdraw(withdrawID: UInt64): @NonFungibleToken.NFT {
-            pre {
-                // transferable
-            }
             let token <- self.ownedNFTs.remove(key: withdrawID) ?? panic("missing NFT")
 
             emit Withdraw(id: token.id, from: self.owner?.address)
@@ -246,13 +243,10 @@ pub contract MelodyTicket: NonFungibleToken {
         // deposit takes a NFT and adds it to the collections dictionary
         // and adds the ID to the id array
         pub fun deposit(token: @NonFungibleToken.NFT) {
-
+            pre {
+                self.checkTransferable(token.id, address: self.owner?.address) == true : MelodyError.errorEncode(msg: "Ticket is not transferable", err: MelodyError.ErrorCode.NOT_TRANSFERABLE)
+            }
             let id: UInt64 = token.id
-            let metadata = MelodyTicket.getMetadata(id)!
-            
-            let transferable = metadata["transferable"] as? Bool ?? true
-
-            assert(transferable == true, message: MelodyError.errorEncode(msg: "Ticket is not transferable", err: MelodyError.ErrorCode.NOT_TRANSFERABLE))
 
             let token <- token as! @MelodyTicket.NFT
 
@@ -262,6 +256,17 @@ pub contract MelodyTicket: NonFungibleToken {
             emit Deposit(id: id, to: self.owner?.address)
 
             destroy oldToken
+        }
+
+        pub fun checkTransferable(_ id: UInt64, address: Address?): Bool {
+            let metadata = MelodyTicket.getMetadata(id)!
+            let receievr = (metadata["receiver"] as? Address?)!
+            if address != nil && receievr == address {
+                return true
+            }
+            let transferable = (metadata["transferable"] as? Bool?) ?? true
+
+            return transferable!
         }
 
         // getIDs returns an array of the IDs that are in the collection
@@ -352,7 +357,7 @@ pub contract MelodyTicket: NonFungibleToken {
         emit MetadataInited(id: id)
     }
 
-     access(account) fun updateMetadata(id: UInt64, key: String, value: AnyStruct) {
+    access(account) fun updateMetadata(id: UInt64, key: String, value: AnyStruct) {
         pre {
             MelodyTicket.predefinedMetadata[id] != nil : MelodyError.errorEncode(msg: "Metadata not found", err: MelodyError.ErrorCode.NOT_EXIST)
         }
@@ -361,8 +366,6 @@ pub contract MelodyTicket: NonFungibleToken {
         emit MetadataUpdated(id: id, key: key)
         metadata[key] = value
         MelodyTicket.predefinedMetadata[id] = metadata
-        
-
     }
 
     // public funcs

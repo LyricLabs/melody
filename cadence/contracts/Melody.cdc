@@ -42,7 +42,7 @@ pub contract Melody {
     pub event VaultCreated(identifier: String)
     pub event VaultWithdrawn(identifier: String, amount: UFix64, balance: UFix64)
     pub event PaymentRecordsUpdated(address: Address, before: [UInt64], after: [UInt64])
-    pub event PaymentCreated(paymentId: UInt64, type: UInt8, creator: Address, reciever: Address, amount: UFix64 )
+    pub event PaymentCreated(paymentId: UInt64, type: UInt8, creator: Address, receiver: Address, amount: UFix64 )
     pub event TicketRecordChanged(address: Address , before: [UInt64], after: [UInt64])
     pub event CommisionSended(paymentId: UInt64, identifier: String, amount: UFix64)
     /**    ____ ___ ____ ___ ____
@@ -146,6 +146,7 @@ pub contract Melody {
             let metadata: {String: AnyStruct} = {}
             metadata["balance"] = self.vault.balance
             metadata["withdrawn"] = self.withdrawn
+            metadata["claimable"] = self.getClaimable()
             metadata["type"] = self.type.rawValue // todo
             metadata["status"] = self.status.rawValue
             metadata["claimed"] = self.ticket == nil
@@ -231,6 +232,66 @@ pub contract Melody {
             emit PaymentTypeChanged(paymentId: self.id, oldType: oldType.rawValue, newType: type.rawValue)
         }
 
+        access(contract) fun getClaimable(): UFix64 {
+            
+            let config = self.config
+            let withdrawn = self.withdrawn
+            let currentTimestamp = getCurrentBlock().timestamp
+            let startTimestamp = (self.config["startTimestamp"] as? UFix64?)!!
+            let vaultBalance = self.vault.balance
+            var claimable = 0.0
+            
+
+            if self.type == PaymentType.STREAM || self.type == PaymentType.REVOCABLE_STREAM {
+                let endTimestamp = (self.config["endTimestamp"] as? UFix64?)!!
+                // assert(1==2, message: "start time:".concat(startTimestamp.toString()).concat("end time:").concat(currentTimestamp.toString()))
+                var timeDelta = 0.0
+                if currentTimestamp <= startTimestamp {
+                    return 0.0
+                }
+                if currentTimestamp > endTimestamp {
+                    timeDelta = endTimestamp - startTimestamp
+                }
+                let streamed = timeDelta / (endTimestamp - startTimestamp) * (vaultBalance + withdrawn)
+                 claimable = streamed
+            } else {
+
+                let cliffDuration = (config["cliffDuration"] as? UFix64) ?? 0.0
+                let cliffAmount = (config["cliffAmount"] as? UFix64) ?? 0.0
+                let stepDuration = (config["stepDuration"] as? UFix64?)!!
+                let steps = (config["steps"] as? Int8?)!!
+                let stepAmount = (config["stepAmount"] as? UFix64?)!!
+                let timeAfterCliff = startTimestamp + cliffDuration
+
+                if currentTimestamp < timeAfterCliff {
+                    return 0.0
+                }
+                let passedSinceCliff = currentTimestamp - timeAfterCliff
+
+                var stepPassed = Int8(passedSinceCliff / stepDuration)
+                if stepPassed > steps {
+                    stepPassed = steps
+                }
+
+                var timeDelta = 0.0
+                if currentTimestamp >= startTimestamp {
+                    timeDelta = currentTimestamp - startTimestamp
+                }
+                var vested = 0.0
+                if cliffDuration <= timeDelta {
+                    vested = cliffAmount
+                } 
+
+                vested = vested + (UFix64(stepPassed) * stepAmount)
+                claimable = vested
+                
+            }
+
+            return claimable
+        }
+
+
+
 
         // withdraw
         access(contract) fun withdraw(_ amount: UFix64): @FungibleToken.Vault {
@@ -248,13 +309,14 @@ pub contract Melody {
         access(self) fun updateStatus() {
 
             let currentTimestamp = getCurrentBlock().timestamp
-            let startTimestamp = (self.config["startTimestamp"] as? UFix64)!
-            let endTimestamp = (self.config["endTimestamp"] as? UFix64)!
+            let startTimestamp = (self.config["startTimestamp"] as? UFix64?)!!
             
             let oldStatus = self.status
             var status = oldStatus
             // update status when stream start
             if self.type == PaymentType.STREAM || self.type == PaymentType.REVOCABLE_STREAM {
+                let endTimestamp = (self.config["endTimestamp"] as? UFix64?)!!
+
                 if self.status == PaymentStatus.UPCOMING && currentTimestamp >= startTimestamp {
                     status = PaymentStatus.ACTIVE
                 }
@@ -265,7 +327,6 @@ pub contract Melody {
                 if self.status == PaymentStatus.UPCOMING && currentTimestamp >= startTimestamp {
                     status = PaymentStatus.ACTIVE
                 }
-                let startTimestamp = (self.config["startTimestamp"] as? UFix64)!
                 let stepDuration = (self.config["stepDuration"] as? UFix64)!
                 let steps = (self.config["steps"] as? Int8)!
                 let cliffDuration = (self.config["cliffDuration"] as? UFix64) ?? 0.0
@@ -277,10 +338,10 @@ pub contract Melody {
 
             self.status = status
             if status == PaymentStatus.COMPLETE {
-                Melody.updateTicketMetadata(id: self.id, key: "status", value: PaymentStatus.COMPLETE)
+                Melody.updateTicketMetadata(id: self.id, key: "status", value: PaymentStatus.COMPLETE.rawValue)
             }
             if status == PaymentStatus.ACTIVE {
-                Melody.updateTicketMetadata(id: self.id, key: "status", value: PaymentStatus.COMPLETE)
+                Melody.updateTicketMetadata(id: self.id, key: "status", value: PaymentStatus.ACTIVE.rawValue)
             }
 
             emit PaymentStatusUpdated(paymentId: self.id, oldStatus: oldStatus.rawValue, newStatus: status.rawValue)
@@ -344,7 +405,6 @@ pub contract Melody {
             // todo emit event
         }
         
-
         pub fun getPayment(_ id: UInt64): &Payment {
             pre{
                 self.payments[id] != nil : MelodyError.errorEncode(msg: "Payment not found", err: MelodyError.ErrorCode.NOT_EXIST)
@@ -355,18 +415,11 @@ pub contract Melody {
 
         pub fun savePayment(_ payment: @Payment) {
             pre {
-                self.payments[payment.id] != nil : MelodyError.errorEncode(msg: "Payment already exists", err: MelodyError.ErrorCode.ALREADY_EXIST)
+                self.payments[payment.id] == nil : MelodyError.errorEncode(msg: "Payment already exists", err: MelodyError.ErrorCode.ALREADY_EXIST)
             }
             self.payments[payment.id] <-! payment
         }
 
-
-        // pub fun setVault(_ vault: @FungibleToken.Vault) {
-        //     let identifier = vault.getType().identifier
-        //     assert(self.vaults[identifier] == nil, message: MelodyError.errorEncode(msg: "Vault already exists", err: MelodyError.ErrorCode.ALREADY_EXIST))
-        //     self.vaults[identifier] <-! vault
-        //     // todo emit event
-        // }
 
         pub fun deposit(_ vault: @FungibleToken.Vault) {
             let identifier = vault.getType().identifier
@@ -434,7 +487,7 @@ pub contract Melody {
     // set metadata
     access(account) fun setTicketMetadata(id: UInt64, metadata: {String: AnyStruct}) {
         pre {
-            MelodyTicket.getMetadata(id) != nil : MelodyError.errorEncode(msg: "Ticket not found", err: MelodyError.ErrorCode.NOT_EXIST)
+            MelodyTicket.getMetadata(id) == nil : MelodyError.errorEncode(msg: "Ticket already exist", err: MelodyError.ErrorCode.ALREADY_EXIST)
         }
         MelodyTicket.setMetadata(id: id, metadata: metadata)
     }
@@ -454,14 +507,14 @@ pub contract Melody {
     /**
      ** @param userCertificateCap - creator cap to proof there identity
      ** @param vault - contain the FT token to steam
-     ** @param reciever - the reciever address
+     ** @param receiver - the receiver address
      ** @param revocable - stream can be revoke or not
      ** @param config - config of create a stream
-        ** @param startTimeStamp - start time of stream
-        ** @param endTimeStamp - end time of stream
+        ** @param startTimestamp - start time of stream
+        ** @param endTimestamp - end time of stream
         ** @param desc - desc of stream
      */
-    pub fun createStream(userCertificateCap: Capability<&{Melody.IdentityCertificate}>, vault: @FungibleToken.Vault, reciever: Address, revocable: Bool, config: {String: AnyStruct}) {
+    pub fun createStream(userCertificateCap: Capability<&{Melody.IdentityCertificate}>, vault: @FungibleToken.Vault, receiver: Address, revocable: Bool, config: {String: AnyStruct}) {
         pre {
             vault.balance >= Melody.minimumPayment : MelodyError.errorEncode(msg: "Vault balance must be greater than ".concat(Melody.minimumPayment.toString()), err: MelodyError.ErrorCode.INVALID_PARAMETERS)
             self.pause == false: MelodyError.errorEncode(msg: "Create stream is paused", err: MelodyError.ErrorCode.PAUSED)
@@ -478,21 +531,22 @@ pub contract Melody {
             type = PaymentType.REVOCABLE_STREAM
         }
 
-        let recipient = getAccount(reciever).getCapability<&{NonFungibleToken.CollectionPublic}>(MelodyTicket.CollectionPublicPath)
+        let recipient = getAccount(receiver).getCapability<&{NonFungibleToken.CollectionPublic}>(MelodyTicket.CollectionPublicPath).borrow()
 
         // todo validate config
         let balance = vault.balance
         let currentTimestamp = getCurrentBlock().timestamp
-        let startTimestamp = (config["startTimestamp"] as? UFix64)!
-        let endTimestamp = (config["endTimestamp"] as? UFix64)!
-        let transferable = (config["transferable"] as? Bool) ?? true
+        let startTimestamp = (config["startTimestamp"] as? UFix64?)!!
+        let endTimestamp = (config["endTimestamp"] as? UFix64?)!!
+        let transferable = (config["transferable"] as? Bool?)! ?? true
 
-        assert(currentTimestamp + Melody.graceDuration < startTimestamp, message: MelodyError.errorEncode(msg: "Start time must be greater than current time", err: MelodyError.ErrorCode.INVALID_PARAMETERS))
+        assert(currentTimestamp + Melody.graceDuration <= startTimestamp, message: MelodyError.errorEncode(msg: "Start time must be greater than current time, currentTimestamp: ".concat(currentTimestamp.toString()).concat(" startTimestamp: ").concat(startTimestamp.toString()), err: MelodyError.ErrorCode.INVALID_PARAMETERS))
         assert(endTimestamp > startTimestamp + Melody.graceDuration, message: MelodyError.errorEncode(msg: "End time must be greater than current time", err: MelodyError.ErrorCode.INVALID_PARAMETERS))
 
         if recipient == nil {
-           config["reciever"] = reciever
+           config["receiver"] = receiver
         }
+        config["amount"] = balance
 
         let payment <- create Payment(id: paymentId, desc:desc, creator: creator, type: type, vault: <- vault, config: config)
        
@@ -509,9 +563,9 @@ pub contract Melody {
         // todo
         let metadata: {String: AnyStruct} = {}
         metadata["paymentInfo"] = config
-        metadata["paymentType"] = type
+        metadata["paymentType"] = type.rawValue
         metadata["paymentId"] = paymentId
-        metadata["status"] = PaymentStatus.UPCOMING
+        metadata["status"] = PaymentStatus.UPCOMING.rawValue
         if transferable == false {
             metadata["transferable"] = false
         }
@@ -522,17 +576,17 @@ pub contract Melody {
 
         let paymentRef = adminRef.getPayment(paymentId)
         if recipient != nil {
-            recipient.borrow()!.deposit(token: <- nft)
+            recipient!.deposit(token: <- nft)
         } else {
+                self.updateUserTicketsRecord(address: receiver, id: paymentRef.id, isDelete: false )
             paymentRef.chacheTicket(ticket: <- nft)
-            self.updateUserTicketsRecord(address: reciever, id:paymentRef.id, isDelete: false )
         }
         // emit event todo
-        emit PaymentCreated(paymentId: paymentRef.id, type: type.rawValue, creator: creator, reciever: reciever, amount: balance )
+        emit PaymentCreated(paymentId: paymentRef.id, type: type.rawValue, creator: creator, receiver: receiver, amount: balance )
     }
 
      /// create vesting
-    pub fun createVesting(userCertificateCap: Capability<&{Melody.IdentityCertificate}>, vault: @FungibleToken.Vault, reciever: Address, revocable: Bool, config: {String: AnyStruct}) {
+    pub fun createVesting(userCertificateCap: Capability<&{Melody.IdentityCertificate}>, vault: @FungibleToken.Vault, receiver: Address, revocable: Bool, config: {String: AnyStruct}) {
         pre {
             vault.balance > Melody.minimumPayment : MelodyError.errorEncode(msg: "Vault balance must be greater than 0", err: MelodyError.ErrorCode.CAN_NOT_BE_ZERO)
             self.pause == false: MelodyError.errorEncode(msg: "Create stream is paused", err: MelodyError.ErrorCode.PAUSED)
@@ -549,7 +603,7 @@ pub contract Melody {
             type = PaymentType.REVOCABLE_VESTING
         }
 
-        let recipient = getAccount(reciever).getCapability<&{NonFungibleToken.CollectionPublic}>(MelodyTicket.CollectionPublicPath)
+        let recipient = getAccount(receiver).getCapability<&{NonFungibleToken.CollectionPublic}>(MelodyTicket.CollectionPublicPath)
 
         // validate config
         let balance = vault.balance
@@ -557,23 +611,23 @@ pub contract Melody {
         let startTimestamp = (config["startTimestamp"] as? UFix64)!
         let cliffDuration = (config["cliffDuration"] as? UFix64) ?? 0.0
         let cliffAmount = (config["cliffAmount"] as? UFix64) ?? 0.0
-        let stepDuration = (config["stepDuration"] as? UFix64)!
+        // let stepDuration = (config["stepDuration"] as? UFix64)!
         let steps = (config["steps"] as? Int8)!
-        let stepAmount = (config["stepAmount"] as? UFix64)!
-        let transferable = (config["transferable"] as? Bool) ?? true
+        let stepAmount = (config["stepAmount"] as? UFix64?)!
+        let transferable = (config["transferable"] as? Bool?)! ?? true
         assert(steps >= 1, message: MelodyError.errorEncode(msg: "Step must greater than 0", err: MelodyError.ErrorCode.INVALID_PARAMETERS))
 
-        let totalAmount = cliffAmount + UFix64(steps) * stepAmount
+        let totalAmount = cliffAmount + UFix64(steps) * stepAmount!
 
         assert(cliffAmount > 0.0 && cliffDuration > startTimestamp, message: MelodyError.errorEncode(msg: "Cliff amount and duration invalid", err: MelodyError.ErrorCode.INVALID_PARAMETERS))
         assert(cliffAmount > 0.0 && cliffDuration > 0.0, message: MelodyError.errorEncode(msg: "Start time must be greater than current time", err: MelodyError.ErrorCode.INVALID_PARAMETERS))
         assert(balance >= totalAmount, message: MelodyError.errorEncode(msg: "Valut balance not enougth - balance: ".concat(balance.toString()).concat("required: ").concat(totalAmount.toString()), err: MelodyError.ErrorCode.INVALID_PARAMETERS))
-        assert(currentTimestamp + Melody.graceDuration < startTimestamp, message: MelodyError.errorEncode(msg: "Start time must be greater than current time with grace period", err: MelodyError.ErrorCode.INVALID_PARAMETERS))
+        assert(currentTimestamp + Melody.graceDuration <= startTimestamp, message: MelodyError.errorEncode(msg: "Start time must be greater than current time with grace period, currentTimestamp: ".concat(currentTimestamp.toString()).concat(" startTimestamp: ").concat(startTimestamp.toString()), err: MelodyError.ErrorCode.INVALID_PARAMETERS))
 
         if recipient == nil {
-           config["reciever"] = reciever
+           config["receiver"] = receiver
         }
-
+        config["amount"] = balance
         let payment <- create Payment(id: paymentId, desc:desc, creator: creator, type: type, vault: <- vault, config: config)
        
         adminRef.savePayment(<- payment)
@@ -588,9 +642,9 @@ pub contract Melody {
 
         let metadata:{String: AnyStruct} = {}
         metadata["paymentInfo"] = config
-        metadata["paymentType"] = type
+        metadata["paymentType"] = type.rawValue
         metadata["paymentId"] = paymentId
-        metadata["status"] = PaymentStatus.UPCOMING
+        metadata["status"] = PaymentStatus.UPCOMING.rawValue
         if transferable == false {
             metadata["transferable"] = false
         }
@@ -604,10 +658,10 @@ pub contract Melody {
             recipient.borrow()!.deposit(token: <- nft)
         } else {
             paymentRef.chacheTicket(ticket: <- nft)
-            self.updateUserTicketsRecord(address: reciever, id:paymentRef.id, isDelete: false )
+            self.updateUserTicketsRecord(address: receiver, id:paymentRef.id, isDelete: false )
         }
         // emit event todo
-        emit PaymentCreated(paymentId: paymentRef.id, type: type.rawValue, creator: creator, reciever: reciever, amount: balance )
+        emit PaymentCreated(paymentId: paymentRef.id, type: type.rawValue, creator: creator, receiver: receiver, amount: balance )
     }
 
     // todo update
@@ -668,6 +722,8 @@ pub contract Melody {
         assert(paymentRef.status != PaymentStatus.CANCELED || paymentRef.status != PaymentStatus.COMPLETE , message: MelodyError.errorEncode(msg: "Cannot change transferable with canceled payment", err: MelodyError.ErrorCode.WRONG_LIFE_CYCLE_STATE))
         assert(transferable == false, message: MelodyError.errorEncode(msg: "Only allow no-transferable to transferable", err: MelodyError.ErrorCode.WRONG_LIFE_CYCLE_STATE))
         paymentRef.updateConfig("transferable", value: true)
+        let nftMetadata = MelodyTicket.getMetadata(paymentId)
+        Melody.updateTicketMetadata(id: paymentId, key: "paymentInfo", value: paymentRef.config)
         Melody.updateTicketMetadata(id: paymentId, key: "transferable", value: true)
 
     }
@@ -679,14 +735,14 @@ pub contract Melody {
         let paymentRef = self.account.borrow<&Admin>(from: self.AdminStoragePath)!.getPayment(paymentId)
         assert(paymentRef.status != PaymentStatus.CANCELED, message: MelodyError.errorEncode(msg: "Cannot claim ticket from canceled payment", err: MelodyError.ErrorCode.WRONG_LIFE_CYCLE_STATE))
         let config = paymentRef.config
-        let recipient = (config["reciever"] as? Address)!
+        let recipient = (config["receiver"] as? Address?)!
         assert(recipient == userCertificateCap.borrow()!.owner!.address, message: MelodyError.errorEncode(msg: "Cannot claim ticket from wrong receiver", err: MelodyError.ErrorCode.ACCESS_DENIED))
         
 
-        self.updateUserTicketsRecord(address: recipient, id:paymentRef.id, isDelete: true )
+        self.updateUserTicketsRecord(address: recipient!, id:paymentRef.id, isDelete: true )
         let ticketRef = &paymentRef.ticket as &MelodyTicket.NFT?
 
-        emit TicketClaimed(paymentId: paymentRef.id, ticketId: ticketRef!.id, receiver: recipient )
+        emit TicketClaimed(paymentId: paymentRef.id, ticketId: ticketRef!.id, receiver: recipient! )
 
         return <- paymentRef.claimTicket()
     }
@@ -725,24 +781,21 @@ pub contract Melody {
         
         let currentTimestamp = getCurrentBlock().timestamp
 
-        let startTimeStamp = (config["startTimeStamp"] as? UFix64)!
-        let endTimeStamp = (config["endTimeStamp"] as? UFix64)!
+        let startTimestamp = (config["startTimestamp"] as? UFix64)!
         let vaultBalance = vaultRef.balance
 
-        assert(currentTimestamp > startTimeStamp, message: MelodyError.errorEncode(msg: "Can withdraw before start", err: MelodyError.ErrorCode.WRONG_LIFE_CYCLE_STATE))
-        var timeDelta = currentTimestamp - startTimeStamp
-        if currentTimestamp > endTimeStamp {
-            timeDelta = endTimeStamp - startTimeStamp
-        }
-        let streamed = timeDelta / (endTimeStamp - startTimeStamp) * (vaultBalance + withdrawn)
-        let withdrawnAmount = streamed - withdrawn
+        assert(currentTimestamp > startTimestamp, message: MelodyError.errorEncode(msg: "Can not withdraw before start", err: MelodyError.ErrorCode.WRONG_LIFE_CYCLE_STATE))
+        let streamed = paymentRef.getClaimable()
+        let canClaimAmount = streamed - withdrawn
+
         assert(streamed >= withdrawn, message: MelodyError.errorEncode(msg: "Steamed amount must greater than withdraw amount", err: MelodyError.ErrorCode.WRONG_LIFE_CYCLE_STATE))
-        let withdrawVault <- paymentRef.withdraw(withdrawnAmount)
+        assert(canClaimAmount <= vaultBalance, message: MelodyError.errorEncode(msg: "Withdraw amount must lower than vault balance", err: MelodyError.ErrorCode.WRONG_LIFE_CYCLE_STATE))
+        let withdrawVault <- paymentRef.withdraw(canClaimAmount)
 
         // commision cut
         self.cutCommision(&withdrawVault as &FungibleToken.Vault, paymentId: paymentRef.id)
         
-        emit PaymentWithdrawn(paymentId: paymentRef.id, type: paymentType.rawValue, status: paymentStatus.rawValue, amount: withdrawnAmount)
+        emit PaymentWithdrawn(paymentId: paymentRef.id, type: paymentType.rawValue, status: paymentStatus.rawValue, amount: canClaimAmount)
 
         return <- withdrawVault
     }
@@ -760,34 +813,13 @@ pub contract Melody {
         assert(paymentStatus == PaymentStatus.UPCOMING || paymentStatus == PaymentStatus.ACTIVE, message: MelodyError.errorEncode(msg: "Can withdraw with wrong status", err: MelodyError.ErrorCode.WRONG_LIFE_CYCLE_STATE))
         
         let currentTimestamp = getCurrentBlock().timestamp
-
-        let startTimeStamp = (config["startTimeStamp"] as? UFix64)!
-        let cliffDuration = (config["cliffDuration"] as? UFix64) ?? 0.0
-        let cliffAmount = (config["cliffAmount"] as? UFix64) ?? 0.0
-        let stepDuration = (config["stepDuration"] as? UFix64)!
-        let steps = (config["steps"] as? Int8)!
-        let stepAmount = (config["stepAmount"] as? UFix64)!
-        let transferable = (config["transferable"] as? Bool) ?? true
+        let startTimestamp = (config["startTimestamp"] as? UFix64)!
         let vaultBalance = vaultRef.balance
-        let timeAfterCliff = startTimeStamp + cliffDuration
-        let passedSinceCliff = currentTimestamp - timeAfterCliff
 
-        var stepPassed = Int8(passedSinceCliff / stepDuration)
-        if stepPassed > steps {
-            stepPassed = steps
-        }
-
-        assert(currentTimestamp > startTimeStamp, message: MelodyError.errorEncode(msg: "Can withdraw before start", err: MelodyError.ErrorCode.WRONG_LIFE_CYCLE_STATE))
-        var timeDelta = currentTimestamp - startTimeStamp
-
-        var claimable = 0.0
-
-        if cliffDuration <= timeDelta {
-            claimable = cliffAmount
-        } 
-
-        claimable = claimable + (UFix64(stepPassed) * stepAmount)
+        assert(currentTimestamp > startTimestamp, message: MelodyError.errorEncode(msg: "Can withdraw before start", err: MelodyError.ErrorCode.WRONG_LIFE_CYCLE_STATE))
+        let claimable = paymentRef.getClaimable()
         let canClaimAmount = claimable - withdrawn
+        assert(canClaimAmount <= vaultBalance, message: MelodyError.errorEncode(msg: "Withdraw amount must lower than vault balance", err: MelodyError.ErrorCode.WRONG_LIFE_CYCLE_STATE))
         assert(claimable >= withdrawn, message: MelodyError.errorEncode(msg: "Vesting claimable amount must greater than withdraw amount", err: MelodyError.ErrorCode.WRONG_LIFE_CYCLE_STATE))
         assert(canClaimAmount > 0.0, message: MelodyError.errorEncode(msg: "No amount can claim", err: MelodyError.ErrorCode.CAN_NOT_BE_ZERO))
 
@@ -812,9 +844,8 @@ pub contract Melody {
     }
 
     access(contract) fun updateUserTicketsRecord(address: Address, id: UInt64, isDelete: Bool){
-        pre{
-                isDelete == true && Melody.userTicketRecords[address]!.contains(id) : MelodyError.errorEncode(msg: "Delete failed: record not existed", err: MelodyError.ErrorCode.INVALID_PARAMETERS)
-                isDelete == false && Melody.userTicketRecords[address]!.contains(id) == false: MelodyError.errorEncode(msg: "Add failed: record already existed", err: MelodyError.ErrorCode.ALREADY_EXIST)
+        if isDelete == true && Melody.userTicketRecords[address]!.contains(id) == false {
+            panic(MelodyError.errorEncode(msg: "Delete failed: record not existed", err: MelodyError.ErrorCode.INVALID_PARAMETERS))
         }
 
         let userTicketRecords = Melody.userTicketRecords[address] ?? []
@@ -828,9 +859,7 @@ pub contract Melody {
         }
 
         Melody.userTicketRecords[address] = newRecords
-        // todo
         emit TicketRecordChanged(address: address , before: userTicketRecords, after: newRecords)
-
     }
 
 

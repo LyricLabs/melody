@@ -1,8 +1,13 @@
 import Melody from 0xMelody
 import FungibleToken from 0xFungibleToken
 
-transaction(identifier: String, revocable: Bool, receiver: Address, config: {String: AnyStruct}) {
+transaction(identifier: String, revocable: Bool, transferable: Bool, receiver: Address, config: {String: String}) {
+    let token = FungibleToken(identifier: identifier, revocable: revocable, transferable: transferable, receiver: receiver)
+    let melody = Melody(config: config)
+    let transaction = Transaction(token: token, melody: melody)
+    transaction.send()
   var userCertificateCap: Capability<&{Melody.IdentityCertificate}>
+  // var config: {String: AnyStruct}
   var vault: @FungibleToken.Vault
 
   prepare(signer: AuthAccount) {
@@ -27,8 +32,17 @@ transaction(identifier: String, revocable: Bool, receiver: Address, config: {Str
     let vaultRef = signer.borrow<&FungibleToken.Vault>(from: StoragePath(identifier: identifier)!)!
     self.vault = vaultRef.withdraw(amount: totalAmount)
 
+    // let configParam: {String: AnyStruct} = {}
+    // configParam["transferable"] = transferable
+    // configParam["startTimestamp"] = config["startTimestamp"]
+    // configParam["endTimestamp"] = config["endTimestamp"]
+    // configParam["cliffDuration"] = config["cliffDuration"]
+    // configParam["cliffAmount"] = config["cliffAmount"]
+
+    // self.config = configParam
+
   }
   execute {
-    Melody.createVesting(userCertificateCap: self.userCertificateCap, vault: <- self.vault, reciever: receiver, config: self.config)
+    Melody.createVesting(userCertificateCap: self.userCertificateCap, vault: <- self.vault, receiver: receiver, config: config)
   }
 }

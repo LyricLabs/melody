@@ -1,9 +1,11 @@
 import Melody from 0xMelody
+import MelodyTicket from 0xMelodyTicket
+import MetadataViews from 0xMetadataViews
 import NonFungibleToken from 0xNonFungibleToken
 
 transaction(id: UInt64) {
   var userCertificateCap: Capability<&{Melody.IdentityCertificate}>
-  var receiverCollection: &{NonFungibleToken.Receiver}
+  var receiverCollection: &{NonFungibleToken.CollectionPublic}
   prepare(signer: AuthAccount) {
     if signer.borrow<&{Melody.IdentityCertificate}>(from: Melody.UserCertificateStoragePath) == nil {
       destroy <- signer.load<@AnyResource>(from: Melody.UserCertificateStoragePath)
@@ -18,7 +20,7 @@ transaction(id: UInt64) {
     }
     self.userCertificateCap = signer.getCapability<&{Melody.IdentityCertificate}>(Melody.UserCertificatePrivatePath)
 
-    if signer.borrow<MelodyTicket.Collection>(from: MelodyTicket.CollectionStoragePath) == nil {
+    if signer.borrow<&MelodyTicket.Collection>(from: MelodyTicket.CollectionStoragePath) == nil {
 
       signer.save(<- MelodyTicket.createEmptyCollection(), to: MelodyTicket.CollectionStoragePath)
 
@@ -28,13 +30,13 @@ transaction(id: UInt64) {
         target: MelodyTicket.CollectionStoragePath
       )
       signer.link<&MelodyTicket.Collection{MelodyTicket.CollectionPrivate}>(
-        self.CollectionPrivatePath,
-        target: self.CollectionStoragePath
+        MelodyTicket.CollectionPrivatePath,
+        target: MelodyTicket.CollectionStoragePath
       )
     } 
 
-    let receiver = self.userCertificateCap.owner!.address
-    let receiverCollectionCap = getAccount(receiver).getCapability<&{NonFungibleToken.Receiver}>(MelodyTicket.CollectionPublicPath)
+    let receiver = self.userCertificateCap.borrow()!.owner!.address
+    let receiverCollectionCap = getAccount(receiver).getCapability<&{NonFungibleToken.CollectionPublic}>(MelodyTicket.CollectionPublicPath)
     self.receiverCollection = receiverCollectionCap.borrow()?? panic("Canot borrow receiver's collection")
 
   }

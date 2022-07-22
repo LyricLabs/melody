@@ -4,5 +4,5 @@ import MelodyTicket from 0xMelodyTicket
 
 pub fun main(addr: Address): Bool {
     let account = getAccount(addr)    
-    return account.getCapability<&{MelodyTicket.CollectionPublic}>(Melody.CollectionPublicPath).check()
+    return account.getCapability<&{MelodyTicket.CollectionPublic}>(MelodyTicket.CollectionPublicPath).check()
 }

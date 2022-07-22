@@ -4,8 +4,11 @@ import MelodyTicket from 0xMelodyTicket
 
 pub fun main(addr: Address): [{String: AnyStruct}] {
     var payments: [{String: AnyStruct}] = []
-    let collection = getAccount(addr).getCapability<&{MelodyTicket.CollectionPublic}>(Melody.CollectionPublicPath).borrow() ?? panic("Can not borrow collection")
-    let ids = collection.getIds()
+    let collection = getAccount(addr).getCapability<&{MelodyTicket.CollectionPublic}>(MelodyTicket.CollectionPublicPath).borrow()
+    if collection == nil {
+        return payments
+    }
+    let ids = collection!.getIDs()
     let tickets: [{String: AnyStruct}] = []
 
     for id in ids {

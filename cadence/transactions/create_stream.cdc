@@ -2,9 +2,10 @@ import Melody from 0xMelody
 import FungibleToken from 0xFungibleToken
 
 // transaction(startTimestamp: UFix64, endTimestamp: UFix64, identifier: String, amount: UFix64, revocable:Bool, transferable:Bool, receiver: Address) {
-transaction(identifier: String, amount: UFix64, revocable: Bool, config: {String: AnyStruct}) {
+transaction(identifier: String, amount: UFix64, revocable: Bool, transferable: Bool, startTimestamp: UFix64, endTimestamp: UFix64, receiver: Address) {
+  
   var userCertificateCap: Capability<&{Melody.IdentityCertificate}>
-//   var config: {String: AnyStruct}
+  var config: {String: AnyStruct}
   var vault: @FungibleToken.Vault
 
   prepare(signer: AuthAccount) {
@@ -21,16 +22,16 @@ transaction(identifier: String, amount: UFix64, revocable: Bool, config: {String
     self.userCertificateCap = signer.getCapability<&{Melody.IdentityCertificate}>(Melody.UserCertificatePrivatePath)
    
     let vaultRef = signer.borrow<&FungibleToken.Vault>(from: StoragePath(identifier: identifier)!)!
-    self.vault = vaultRef.withdraw(amount: amount)
+    self.vault <- vaultRef.withdraw(amount: amount)
     
-    // let config: {String: AnyStruct} = {}
-    // config["transferable"] = transferable
-    // config["startTimestamp"] = startTimestamp
-    // config["endTimestamp"] = endTimestamp
+    let config: {String: AnyStruct} = {}
+    config["transferable"] = transferable
+    config["startTimestamp"] = startTimestamp
+    config["endTimestamp"] = endTimestamp
 
-    // self.config = config
+    self.config = config
   }
   execute {
-    Melody.createStream(userCertificateCap: self.userCertificateCap, vault: <- self.vault, reciever: receiver, config: config)
+    Melody.createStream(userCertificateCap: self.userCertificateCap, vault: <- self.vault, receiver: receiver, revocable: revocable, config: self.config)
   }
 }

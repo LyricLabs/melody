@@ -1,6 +1,6 @@
 import { adminTestCases } from './cases/admin.js'
-import { streanTestCases } from './cases/strean.js'
-import { vestubgTestCases } from './cases/vesting'
+import { streamTestCases } from './cases/stream.js'
+import { vestingTestCases } from './cases/vesting'
 
 describe('Cadence test case', () => {
   adminTestCases()

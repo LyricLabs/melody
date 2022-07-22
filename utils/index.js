@@ -13,6 +13,7 @@ import {
   FUSDTokenAddr,
   flowNonFungibleAddr,
   alchemyKey,
+  metadataViewsAddr,
 } from '../config/constants.js'
 import { dirname, resolve } from 'path'
 import { fileURLToPath } from 'url'

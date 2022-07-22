@@ -1,4 +1,5 @@
 import NonFungibleToken from 0xNonFungibleToken
+import MetadataViews from 0xMetadataViews
 import Melody from 0xMelody
 import MelodyTicket from 0xMelodyTicket
 
@@ -13,7 +14,7 @@ transaction() {
       signer.link<&{Melody.IdentityCertificate}>(Melody.UserCertificatePrivatePath, target: Melody.UserCertificateStoragePath)
     }
 
-    if signer.borrow<MelodyTicket.Collection>(from: MelodyTicket.CollectionStoragePath) == nil {
+    if signer.borrow<&MelodyTicket.Collection>(from: MelodyTicket.CollectionStoragePath) == nil {
 
       signer.save(<-  MelodyTicket.createEmptyCollection(), to: MelodyTicket.CollectionStoragePath)
 
@@ -23,8 +24,8 @@ transaction() {
         target: MelodyTicket.CollectionStoragePath
       )
       signer.link<&MelodyTicket.Collection{MelodyTicket.CollectionPrivate}>(
-        self.CollectionPrivatePath,
-        target: self.CollectionStoragePath
+        MelodyTicket.CollectionPrivatePath,
+        target: MelodyTicket.CollectionStoragePath
       )
     }
   }

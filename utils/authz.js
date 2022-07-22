@@ -1,6 +1,6 @@
 import { sign } from './crypto.js'
 import fcl from '@onflow/fcl'
-import { network } from 'config/constants'
+import { network } from '../config/constants.js'
 // alias Hex = String
 // type signable = { message: Hex, voucher: voucher }
 // type compositeSignature = { addr: String, keyId: Number, signature: Hex }

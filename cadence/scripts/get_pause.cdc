@@ -1,6 +1,6 @@
 
 import Melody from 0xMelody
 
-pub fun main(): UInt64 {
-  return Melody.minimumPayment
+pub fun main(): Bool {
+  return Melody.pause
 }

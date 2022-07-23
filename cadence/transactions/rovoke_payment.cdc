@@ -1,9 +1,9 @@
 import Melody from 0xMelody
 import FungibleToken from 0xFungibleToken
 
-transaction(userCertificateCap: Capability<&{Melody.IdentityCertificate}>, id: UInt64, identifier: String) {
+transaction(id: UInt64) {
   var userCertificateCap: Capability<&{Melody.IdentityCertificate}>
-  var receiver: &{FungibleToken.Receiver}
+  var receiver: &FungibleToken.Vault
   prepare(signer: AuthAccount) {
     if signer.borrow<&{Melody.IdentityCertificate}>(from: Melody.UserCertificateStoragePath) == nil {
       destroy <- signer.load<@AnyResource>(from: Melody.UserCertificateStoragePath)
@@ -16,7 +16,10 @@ transaction(userCertificateCap: Capability<&{Melody.IdentityCertificate}>, id: U
       signer.link<&{Melody.IdentityCertificate}>(Melody.UserCertificatePrivatePath, target: Melody.UserCertificateStoragePath)
     }
     self.userCertificateCap = signer.getCapability<&{Melody.IdentityCertificate}>(Melody.UserCertificatePrivatePath)
-    self.receiver = signer.getCapability(PublicPath(identifier: identifier)!).borrow<&{FungibleToken.Receiver}>()
+
+    let paymentInfo = Melody.getPaymentInfo(id)
+    let identifier = (paymentInfo["vaultIdentifier"] as? String?)!
+    self.receiver =  signer.borrow<&FungibleToken.Vault>(from: StoragePath(identifier: identifier!)!)!
 
   }
   execute {

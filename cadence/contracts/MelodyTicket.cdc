@@ -97,8 +97,8 @@ pub contract MelodyTicket: NonFungibleToken {
 
         destroy (){
             let metadata = self.getMetadata()
-            let status = (metadata["status"] as? Int8)!
-            assert(status > 1, message: MelodyError.errorEncode(msg: "Cannot destory ticket while it is activing", err: MelodyError.ErrorCode.WRONG_LIFE_CYCLE_STATE))
+            let status = (metadata["status"] as? Int8?)!
+            assert(status! > 1, message: MelodyError.errorEncode(msg: "Cannot destory ticket while it is activing", err: MelodyError.ErrorCode.WRONG_LIFE_CYCLE_STATE))
         }
 
 
@@ -253,7 +253,11 @@ pub contract MelodyTicket: NonFungibleToken {
             // add the new token to the dictionary which removes the old one
             let oldToken <- self.ownedNFTs[id] <- token
 
-            emit Deposit(id: id, to: self.owner?.address)
+            // update owner
+            let owner = self.owner?.address
+            MelodyTicket.updateMetadata(id: id, key: "owner", value: owner)
+            
+            emit Deposit(id: id, to: owner)
 
             destroy oldToken
         }
@@ -264,9 +268,9 @@ pub contract MelodyTicket: NonFungibleToken {
             if address != nil && receievr == address {
                 return true
             }
-            let transferable = (metadata["transferable"] as? Bool?) ?? true
+            let transferable = (metadata["transferable"] as? Bool?)! ?? true
 
-            return transferable!
+            return transferable
         }
 
         // getIDs returns an array of the IDs that are in the collection

@@ -81,16 +81,17 @@ export const paths = {
     setPause: buildPath('set_pause.cdc'),
 
     // ==
-    canclePayment: buildPath('cancel_payment.cdc'),
-    changeRevokable: buildPath('change_revokable.cdc'),
+    revokePayment: buildPath('rovoke_payment.cdc'),
+    changeRevocable: buildPath('change_revocable.cdc'),
     changeTransferable: buildPath('change_transferable.cdc'),
     claimTicket: buildPath('claim_ticket.cdc'),
     claimAllTicket: buildPath('claim_all_ticket.cdc'),
-    canclePayment: buildPath('cancel_payment.cdc'),
+
     createStream: buildPath('create_stream.cdc'),
     createVesting: buildPath('create_vesting.cdc'),
-    createVesting: buildPath('create_vesting.cdc'),
+    createSimpleVesting: buildPath('create_simple_vesting.cdc'),
     transferTicket: buildPath('transfer_ticket.cdc'),
     withdraw: buildPath('withdraw.cdc'),
+    destoryTicket: buildPath('destory_ticket.cdc'),
   },
 }

@@ -1,10 +1,11 @@
+import FungibleToken from 0xFungibleToken
 import Melody from 0xMelody
 import MelodyTicket from 0xMelodyTicket
 
-transaction(userCertificateCap: Capability<&{Melody.IdentityCertificate}>, paymentId: UInt64, identifier: String) {
+transaction(paymentId: UInt64) {
   var userCertificateCap: Capability<&{Melody.IdentityCertificate}>
   var ticketRef: &MelodyTicket.NFT
-  var receiver: &{FungibleToken.Receiver}
+  var receiver: &FungibleToken.Vault
 
   prepare(signer: AuthAccount) {
     if signer.borrow<&{Melody.IdentityCertificate}>(from: Melody.UserCertificateStoragePath) == nil {
@@ -19,10 +20,13 @@ transaction(userCertificateCap: Capability<&{Melody.IdentityCertificate}>, payme
     }
     self.userCertificateCap = signer.getCapability<&{Melody.IdentityCertificate}>(Melody.UserCertificatePrivatePath)
     
-    let collectionPriv =  signer.borrow<&MelodyTicket.CollectionPrivate>(from: Melody.CollectionStoragePath)!
+    let collectionPriv =  signer.borrow<&{MelodyTicket.CollectionPrivate}>(from: MelodyTicket.CollectionStoragePath)!
+
     self.ticketRef = collectionPriv.borrowMelodyTicket(id: paymentId)!
-    
-    self.receiver = signer.getCapability(PublicPath(identifier: identifier)!).borrow<&{FungibleToken.Receiver}>()
+
+    let paymentInfo = Melody.getPaymentInfo(paymentId)
+    let identifier = (paymentInfo["vaultIdentifier"] as? String?)!
+    self.receiver = signer.borrow<&FungibleToken.Vault>(from: StoragePath(identifier: identifier!)!)!
   }
   execute {
     self.receiver.deposit(from: <- Melody.withdraw(userCertificateCap: self.userCertificateCap, ticket: self.ticketRef))

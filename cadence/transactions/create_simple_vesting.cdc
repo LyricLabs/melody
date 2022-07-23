@@ -1,9 +1,7 @@
 import Melody from 0xMelody
 import FungibleToken from 0xFungibleToken
 
-// transaction(startTimestamp: UFix64, endTimestamp: UFix64, identifier: String, amount: UFix64, revocable:Bool, transferable:Bool, receiver: Address) {
-transaction(identifier: String, amount: UFix64, revocable: Bool, transferable: Bool, startTimestamp: UFix64, endTimestamp: UFix64, receiver: Address) {
-  
+transaction(identifier: String, revocable: Bool, transferable: Bool, receiver: Address, startTimestamp: UFix64, steps: Int8, stepDuration: UFix64, stepAmount: UFix64) {
   var userCertificateCap: Capability<&{Melody.IdentityCertificate}>
   var config: {String: AnyStruct}
   var vault: @FungibleToken.Vault
@@ -20,19 +18,25 @@ transaction(identifier: String, amount: UFix64, revocable: Bool, transferable: B
       signer.link<&{Melody.IdentityCertificate}>(Melody.UserCertificatePrivatePath, target: Melody.UserCertificateStoragePath)
     }
     self.userCertificateCap = signer.getCapability<&{Melody.IdentityCertificate}>(Melody.UserCertificatePrivatePath)
-   
-    let vaultRef = signer.borrow<&FungibleToken.Vault>(from: StoragePath(identifier: identifier)!)!
-    self.vault <- vaultRef.withdraw(amount: amount)
     
     let config: {String: AnyStruct} = {}
     config["transferable"] = transferable
     config["startTimestamp"] = startTimestamp
-    config["endTimestamp"] = endTimestamp
+    config["steps"] = steps
+    config["stepDuration"] = stepDuration
+    config["stepAmount"] = stepAmount
     config["vaultIdentifier"] = identifier
 
     self.config = config
+    
+    let totalAmount = UFix64(steps!) * stepAmount!
+
+    let vaultRef = signer.borrow<&FungibleToken.Vault>(from: StoragePath(identifier: identifier)!)!
+    self.vault <- vaultRef.withdraw(amount: totalAmount)
+
   }
+
   execute {
-    Melody.createStream(userCertificateCap: self.userCertificateCap, vault: <- self.vault, receiver: receiver, revocable: revocable, config: self.config)
+    Melody.createVesting(userCertificateCap: self.userCertificateCap, vault: <- self.vault, receiver: receiver, revocable: revocable, config: self.config)
   }
 }

@@ -18,6 +18,6 @@ transaction(id: UInt64) {
    
   }
   execute {
-    Melody.changeRevokable(userCertificateCap: self.userCertificateCap, paymentId: id)
+    Melody.changeRevocable(userCertificateCap: self.userCertificateCap, paymentId: id)
   }
 }

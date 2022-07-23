@@ -1,13 +1,9 @@
 import Melody from 0xMelody
 import FungibleToken from 0xFungibleToken
 
-transaction(identifier: String, revocable: Bool, transferable: Bool, receiver: Address, config: {String: String}) {
-    let token = FungibleToken(identifier: identifier, revocable: revocable, transferable: transferable, receiver: receiver)
-    let melody = Melody(config: config)
-    let transaction = Transaction(token: token, melody: melody)
-    transaction.send()
+transaction(identifier: String, revocable: Bool, transferable: Bool, receiver: Address, startTimestamp: UFix64, cliffDuration: UFix64, cliffAmount: UFix64, steps: Int8, stepDuration: UFix64, stepAmount: UFix64) {
   var userCertificateCap: Capability<&{Melody.IdentityCertificate}>
-  // var config: {String: AnyStruct}
+  var config: {String: AnyStruct}
   var vault: @FungibleToken.Vault
 
   prepare(signer: AuthAccount) {
@@ -23,26 +19,26 @@ transaction(identifier: String, revocable: Bool, transferable: Bool, receiver: A
     }
     self.userCertificateCap = signer.getCapability<&{Melody.IdentityCertificate}>(Melody.UserCertificatePrivatePath)
     
-    let cliffAmount = (config["cliffAmount"] as? UFix64) ?? 0.0
-    let steps = (config["steps"] as? Int8)!
-    let stepAmount = (config["stepAmount"] as? UFix64)!
+    let config: {String: AnyStruct} = {}
+    config["transferable"] = transferable
+    config["startTimestamp"] = startTimestamp
+    config["cliffDuration"] = cliffDuration
+    config["cliffAmount"] = cliffAmount
+    config["steps"] = steps
+    config["stepDuration"] = stepDuration
+    config["stepAmount"] = stepAmount
+    config["vaultIdentifier"] = identifier
 
-    let totalAmount = cliffAmount + UFix64(steps) * stepAmount
+    self.config = config
+    
+    let totalAmount = cliffAmount + UFix64(steps!) * stepAmount!
 
     let vaultRef = signer.borrow<&FungibleToken.Vault>(from: StoragePath(identifier: identifier)!)!
-    self.vault = vaultRef.withdraw(amount: totalAmount)
-
-    // let configParam: {String: AnyStruct} = {}
-    // configParam["transferable"] = transferable
-    // configParam["startTimestamp"] = config["startTimestamp"]
-    // configParam["endTimestamp"] = config["endTimestamp"]
-    // configParam["cliffDuration"] = config["cliffDuration"]
-    // configParam["cliffAmount"] = config["cliffAmount"]
-
-    // self.config = configParam
+    self.vault <- vaultRef.withdraw(amount: totalAmount)
 
   }
+
   execute {
-    Melody.createVesting(userCertificateCap: self.userCertificateCap, vault: <- self.vault, receiver: receiver, config: config)
+    Melody.createVesting(userCertificateCap: self.userCertificateCap, vault: <- self.vault, receiver: receiver, revocable: revocable, config: self.config)
   }
 }

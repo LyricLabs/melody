@@ -158,7 +158,7 @@ pub contract MelodyTicket: NonFungibleToken {
                     return MetadataViews.NFTCollectionData(
                         storagePath: MelodyTicket.CollectionStoragePath,
                         publicPath: MelodyTicket.CollectionPublicPath,
-                        providerPath: /private/MelodyCollection,
+                        providerPath: /private/MelodyTicketCollection,
                         publicCollection: Type<&MelodyTicket.Collection{MelodyTicket.CollectionPublic}>(),
                         publicLinkedType: Type<&MelodyTicket.Collection{MelodyTicket.CollectionPublic,NonFungibleToken.CollectionPublic,NonFungibleToken.Receiver,MetadataViews.ResolverCollection}>(),
                         providerLinkedType: Type<&MelodyTicket.Collection{MelodyTicket.CollectionPublic,NonFungibleToken.CollectionPublic,NonFungibleToken.Provider,MetadataViews.ResolverCollection}>(),

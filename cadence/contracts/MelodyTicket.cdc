@@ -39,7 +39,8 @@ pub contract MelodyTicket: NonFungibleToken {
     pub event Withdraw(id: UInt64, from: Address?)
     pub event Deposit(id: UInt64, to: Address?)
 
-    pub event TicketCreated(id: UInt64)
+    pub event TicketCreated(id: UInt64, creator: Address?)
+    pub event TicketDestoryed(id: UInt64, owner: Address?)
     pub event MetadataUpdated(id: UInt64, key: String)
     pub event MetadataInited(id: UInt64)
     pub event BaseURIUpdated(before: String, after: String)
@@ -97,8 +98,10 @@ pub contract MelodyTicket: NonFungibleToken {
 
         destroy (){
             let metadata = self.getMetadata()
-            let status = (metadata["status"] as? Int8?)!
+            let status = (metadata["status"] as? UInt8?)!
+            let owner = (metadata["owner"] as? Address?)!
             assert(status! > 1, message: MelodyError.errorEncode(msg: "Cannot destory ticket while it is activing", err: MelodyError.ErrorCode.WRONG_LIFE_CYCLE_STATE))
+            emit TicketDestoryed(id: self.id, owner: owner)
         }
 
 
@@ -211,6 +214,7 @@ pub contract MelodyTicket: NonFungibleToken {
         pub fun deposit(token: @NonFungibleToken.NFT)
         pub fun getIDs(): [UInt64]
         pub fun borrowNFT(id: UInt64): &NonFungibleToken.NFT
+        pub fun borrowNFTResolver(id: UInt64): &{MetadataViews.Resolver}?
     }
 
     pub resource interface CollectionPrivate {
@@ -284,6 +288,14 @@ pub contract MelodyTicket: NonFungibleToken {
             return (&self.ownedNFTs[id] as &NonFungibleToken.NFT?)!
         }
  
+        pub fun borrowNFTResolver(id: UInt64): &{MetadataViews.Resolver}? {
+            if self.ownedNFTs[id] != nil {
+                // Create an authorized reference to allow downcasting
+                let ref = (&self.ownedNFTs[id] as auth &NonFungibleToken.NFT?)!
+                return ref as! &MelodyTicket.NFT
+            }
+            return nil
+        }
         pub fun borrowMelodyTicket(id: UInt64): &MelodyTicket.NFT? {
             if self.ownedNFTs[id] != nil {
                 // Create an authorized reference to allow downcasting
@@ -334,7 +346,8 @@ pub contract MelodyTicket: NonFungibleToken {
             )
             // deposit it in the recipient's account using their reference
             // recipient.deposit(token: <- newNFT)
-            emit TicketCreated(id: nftId)
+            let creator = (metadata["creator"] as? Address?)!
+            emit TicketCreated(id: nftId, creator: creator)
             MelodyTicket.totalSupply = nftId
             return <- newNFT
         }

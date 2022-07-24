@@ -576,8 +576,10 @@ pub contract Melody {
         if transferable == false {
             metadata["transferable"] = false
         }
-        
-        let nft <- ticketMinter.mintNFT(name: name, description: desc, metadata: {})
+         // info for nft ticket
+        let nftMetadata: {String: AnyStruct} = {}
+        nftMetadata["creator"] = creator
+        let nft <- ticketMinter.mintNFT(name: name, description: desc, metadata: nftMetadata)
 
         self.setTicketMetadata(id: nft.id, metadata: metadata)
 
@@ -653,7 +655,7 @@ pub contract Melody {
 
         let ticketMinter = account.borrow<&MelodyTicket.NFTMinter>(from: MelodyTicket.MinterStoragePath)!
 
-        let name = "Melody".concat("vesting ticket#").concat(paymentId.toString())
+        let name = "Melody".concat(" vesting ticket#").concat(paymentId.toString())
 
         let metadata:{String: AnyStruct} = {}
         metadata["paymentInfo"] = config
@@ -666,8 +668,10 @@ pub contract Melody {
         if transferable == false {
             metadata["transferable"] = false
         }
-
-        let nft <- ticketMinter.mintNFT(name: name, description: desc, metadata: {})
+        // info for nft ticket
+        let nftMetadata: {String: AnyStruct} = {}
+        nftMetadata["creator"] = creator
+        let nft <- ticketMinter.mintNFT(name: name, description: desc, metadata: nftMetadata)
 
         self.setTicketMetadata(id: nft.id, metadata: metadata)
 

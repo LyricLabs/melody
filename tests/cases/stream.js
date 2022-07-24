@@ -25,7 +25,7 @@ export const streamTestCases = () =>
         fcl.arg('100.0', t.UFix64),
         fcl.arg(true, t.Bool),
         fcl.arg(false, t.Bool),
-        fcl.arg(Number(currentTimestamp + 1).toFixed(2), t.UFix64),
+        fcl.arg((Number(currentTimestamp) + 2).toFixed(2), t.UFix64),
         fcl.arg((Number(currentTimestamp) + 100).toFixed(2), t.UFix64),
         fcl.arg(test2Addr, t.Address),
       ])
@@ -43,7 +43,7 @@ export const streamTestCases = () =>
       expect(res).not.toBeNull()
       console.log(res, 'paymentInfo')
 
-      await sleep(3000)
+      await sleep(4000)
 
       // failed
       res = await buildAndSendTrx('withdraw', [fcl.arg(paymentId, t.UInt64)], test1Authz())

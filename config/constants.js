@@ -53,6 +53,7 @@ export const paths = {
     getCommision: buildPath('get_commision.cdc', 'script'),
     getMinimumPaymentAmount: buildPath('get_minimum_payment_amount.cdc', 'script'),
     getNFTMetadata: buildPath('get_nft_metadata.cdc', 'script'),
+    getTicketMetadata: buildPath('get_ticket_metadata.cdc', 'script'),
     getNFTTotalSupply: buildPath('get_nft_total_supply.cdc', 'script'),
     getPaymentInfo: buildPath('get_payment_info.cdc', 'script'),
     getStreamCount: buildPath('get_streaming_count.cdc', 'script'),

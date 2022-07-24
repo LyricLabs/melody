@@ -203,12 +203,12 @@ export const adminTestCases = () =>
       let res = await buildAndExecScript('getCommision')
       expect(Number(res)).toBe(0.01)
 
-      res = await buildAndSendTrx('setCommision', [fcl.arg('0.02', t.UFix64)])
+      res = await buildAndSendTrx('setCommision', [fcl.arg('0.0', t.UFix64)])
       expect(res).not.toBeNull()
       expect(res.status).toBe(4)
 
       res = await buildAndExecScript('getCommision')
-      expect(Number(res)).toBe(0.02)
+      expect(Number(res)).toBe(0)
     })
 
     // ===

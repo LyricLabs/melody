@@ -31,22 +31,31 @@ const main = async () => {
   //   fcl.arg('30.0', t.UFix64), // step amount
   // ])
 
-  res = await buildAndSendTrx('createSimpleVesting', [
-    fcl.arg('fusdVault', t.String),
-    fcl.arg(true, t.Bool), // revocable
-    fcl.arg(true, t.Bool), // transferable
-    fcl.arg(test2Addr, t.Address), // receiver
-    fcl.arg((Number(currentTimestamp) + 1000).toFixed(2), t.UFix64), // start time
-    fcl.arg(3, t.Int8), // steps
-    fcl.arg('2.0', t.UFix64), // step duration
-    fcl.arg('30.0', t.UFix64), // step amount
+  // res = await buildAndSendTrx('createSimpleVesting', [
+  //   fcl.arg('fusdVault', t.String),
+  //   fcl.arg(true, t.Bool), // revocable
+  //   fcl.arg(true, t.Bool), // transferable
+  //   fcl.arg(test2Addr, t.Address), // receiver
+  //   fcl.arg((Number(currentTimestamp) + 1000).toFixed(2), t.UFix64), // start time
+  //   fcl.arg(3, t.Int8), // steps
+  //   fcl.arg('2.0', t.UFix64), // step duration
+  //   fcl.arg('30.0', t.UFix64), // step amount
+  // ])
+
+  // console.log(res)
+
+  // res = await buildAndExecScript('getNFTMetadata', [fcl.arg(6, t.UInt64)])
+  // console.log(res)
+  res = await buildAndExecScript('getUserIncomePayment', [fcl.arg(test1Addr, t.Address)])
+
+  console.log(res)
+
+  res = await buildAndExecScript('getTicketMetadata', [
+    fcl.arg(test2Addr, t.Address),
+    fcl.arg(9, t.UInt64),
   ])
 
-
-  console.log(res)
-
-  res = await buildAndExecScript('getNFTMetadata', [fcl.arg(6, t.UInt64)])
-  console.log(res)
+  console.log(JSON.stringify(res))
 }
 
 main()

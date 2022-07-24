@@ -143,11 +143,11 @@ export const vestingTestCases = () =>
         fcl.arg(true, t.Bool), // revocable
         fcl.arg(true, t.Bool), // transferable
         fcl.arg(test2Addr, t.Address), // receiver
-        fcl.arg((Number(currentTimestamp) + 1).toFixed(2), t.UFix64), // start time
+        fcl.arg((Number(currentTimestamp) + 2).toFixed(2), t.UFix64), // start time
         fcl.arg('2.0', t.UFix64), // cliff duration
         fcl.arg('2.0', t.UFix64), // cliff amount
         fcl.arg(3, t.Int8), // steps
-        fcl.arg('2.0', t.UFix64), // step duration
+        fcl.arg('1.0', t.UFix64), // step duration
         fcl.arg('30.0', t.UFix64), // step amount
       ])
 
@@ -165,7 +165,6 @@ export const vestingTestCases = () =>
       res = await buildAndExecScript('getPaymentInfo', [fcl.arg(paymentId, t.UInt64)])
       expect(res).not.toBeNull()
       expect(res.type).toBe('2')
-
 
       res = await buildAndSendTrx('withdraw', [fcl.arg(paymentId, t.UInt64)], test2Authz())
       expect(res).not.toBeNull()
@@ -186,7 +185,6 @@ export const vestingTestCases = () =>
       expect(res.ticketInfo.owner).toBe(test1Addr)
       console.log(res, 'paymentInfo')
 
-
       res = await buildAndExecScript('getPaymentInfo', [fcl.arg(paymentId, t.UInt64)])
       expect(res).not.toBeNull()
       expect(res.ticketInfo.owner).toBe(test1Addr)
@@ -197,12 +195,56 @@ export const vestingTestCases = () =>
       expect(res.status).toBe(4)
 
       res = await buildAndSendTrx('destoryTicket', [fcl.arg(paymentId, t.UInt64)], test1Authz())
-      expect(res).toBeNull()
+      expect(res).not.toBeNull()
+      expect(res.status).toBe(4)
+
     })
 
     test('template', async () => {
-     
-      // res = await buildAndSendTrx('setupAccount', [], test2Authz())
-      // expect(res).not.toBeNull()
+      let currentTimestamp = await buildAndExecScript('getTimestamp')
+      let res = await buildAndSendTrx('createSimpleVesting', [
+        fcl.arg('fusdVault', t.String),
+        fcl.arg(true, t.Bool), // revocable
+        fcl.arg(true, t.Bool), // transferable
+        fcl.arg(test1Addr, t.Address), // receiver
+        fcl.arg((Number(currentTimestamp) + 5).toFixed(2), t.UFix64), // start time
+        fcl.arg(5, t.Int8), // steps
+        fcl.arg('3.0', t.UFix64), // step duration
+        fcl.arg('20.0', t.UFix64), // step amount
+      ])
+      expect(res).not.toBeNull()
+      expect(res.status).toBe(4)
+
+      paymentId = 9
+
+      res = await buildAndExecScript('getPaymentInfo', [fcl.arg(paymentId, t.UInt64)])
+      expect(res).not.toBeNull()
+      expect(res.ticketInfo.owner).toBe(test1Addr)
+
+      await sleep(6500)
+      res = await buildAndSendTrx(
+        'transferTicket',
+        [fcl.arg(paymentId, t.UInt64), fcl.arg(test2Addr, t.Address)],
+        test1Authz(),
+      )
+      expect(res).not.toBeNull()
+      expect(res.status).toBe(4)
+
+      res = await buildAndExecScript('getPaymentInfo', [fcl.arg(paymentId, t.UInt64)])
+      expect(res).not.toBeNull()
+      expect(res.ticketInfo.owner).toBe(test2Addr)
+      console.log(res, 'paymentInfo')
+
+      res = await buildAndSendTrx('withdraw', [fcl.arg(paymentId, t.UInt64)], test2Authz())
+      expect(res).not.toBeNull()
+      expect(res.status).toBe(4)
+
+
+      res = await buildAndExecScript('getPaymentInfo', [fcl.arg(paymentId, t.UInt64)])
+      expect(res).not.toBeNull()
+      expect(res.ticketInfo.owner).toBe(test2Addr)
+      console.log(res, 'paymentInfo')
+
+      
     })
   })

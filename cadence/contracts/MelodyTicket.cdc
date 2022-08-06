@@ -41,6 +41,7 @@ pub contract MelodyTicket: NonFungibleToken {
 
     pub event TicketCreated(id: UInt64, creator: Address?)
     pub event TicketDestoryed(id: UInt64, owner: Address?)
+    pub event TicketTransfered(paymentId: UInt64, from: Address?, to: Address?)
     pub event MetadataUpdated(id: UInt64, key: String)
     pub event MetadataInited(id: UInt64)
     pub event BaseURIUpdated(before: String, after: String)
@@ -259,6 +260,11 @@ pub contract MelodyTicket: NonFungibleToken {
 
             // update owner
             let owner = self.owner?.address
+            let metadata = MelodyTicket.getMetadata(id)!
+            let currentOwner = (metadata["owner"] as? Address?)!
+
+            emit TicketTransfered(paymentId: id, from: currentOwner, to: owner)
+
             MelodyTicket.updateMetadata(id: id, key: "owner", value: owner)
             
             emit Deposit(id: id, to: owner)

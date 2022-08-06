@@ -151,6 +151,8 @@ pub contract Melody {
             metadata["type"] = self.type.rawValue
             metadata["status"] = self.status.rawValue
             metadata["claimed"] = self.ticket == nil
+            metadata["creator"] = self.creator
+            metadata["desc"] = self.desc
             // metadata["config"] = self.config
             let keys = self.config.keys
             for key in keys {
@@ -579,6 +581,9 @@ pub contract Melody {
          // info for nft ticket
         let nftMetadata: {String: AnyStruct} = {}
         nftMetadata["creator"] = creator
+
+        emit PaymentCreated(paymentId: paymentRef.id, type: type.rawValue, creator: creator, receiver: receiver, amount: balance )
+
         let nft <- ticketMinter.mintNFT(name: name, description: desc, metadata: nftMetadata)
 
         self.setTicketMetadata(id: nft.id, metadata: metadata)
@@ -589,8 +594,6 @@ pub contract Melody {
                 self.updateUserTicketsRecord(address: receiver, id: paymentRef.id, isDelete: false )
             paymentRef.chacheTicket(ticket: <- nft)
         }
-        // emit event todo
-        emit PaymentCreated(paymentId: paymentRef.id, type: type.rawValue, creator: creator, receiver: receiver, amount: balance )
     }
 
      /// create vesting
@@ -648,6 +651,7 @@ pub contract Melody {
         let payment <- create Payment(id: paymentId, desc:desc, creator: creator, type: type, vault: <- vault, config: config)
        
         adminRef.savePayment(<- payment)
+        let paymentRef = adminRef.getPayment(paymentId)
 
         self.totalCreated = paymentId
         self.streamCount = self.streamCount + UInt64(1)
@@ -671,19 +675,18 @@ pub contract Melody {
         // info for nft ticket
         let nftMetadata: {String: AnyStruct} = {}
         nftMetadata["creator"] = creator
+
+        emit PaymentCreated(paymentId: paymentRef.id, type: type.rawValue, creator: creator, receiver: receiver, amount: balance )
         let nft <- ticketMinter.mintNFT(name: name, description: desc, metadata: nftMetadata)
 
         self.setTicketMetadata(id: nft.id, metadata: metadata)
 
-        let paymentRef = adminRef.getPayment(paymentId)
         if recipient != nil {
             recipient!.deposit(token: <- nft)
         } else {
             paymentRef.chacheTicket(ticket: <- nft)
             self.updateUserTicketsRecord(address: receiver, id:paymentRef.id, isDelete: false )
         }
-        // emit event todo
-        emit PaymentCreated(paymentId: paymentRef.id, type: type.rawValue, creator: creator, receiver: receiver, amount: balance )
     }
 
     // todo update

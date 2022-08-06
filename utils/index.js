@@ -34,7 +34,7 @@ export const fclInit = () => {
     .put('0xMelody', accountAddr)
     .put('0xMelodyError', accountAddr)
     .put('0xMelodyTicket', accountAddr)
-    .put('grpc.metadata', { api_key: alchemyKey })
+    // .put('grpc.metadata', { api_key: alchemyKey })
 }
 
 export const sendTrx = async (CODE, args, auth = null, limit = 9999) => {

@@ -64,6 +64,7 @@ export const paths = {
     getOutgoingPayment: buildPath('get_user_outgoing_payments.cdc', 'script'),
     getUserUnclaimTickets: buildPath('get_user_unclaim_tickets.cdc', 'script'),
     getPaymentClaimable: buildPath('get_payment_claimable.cdc', 'script'),
+    getUserStats: buildPath('get_user_stats.cdc', 'script'),
   },
 
   transactions: {

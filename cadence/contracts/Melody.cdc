@@ -45,6 +45,8 @@ pub contract Melody {
     pub event PaymentCreated(paymentId: UInt64, type: UInt8, creator: Address, receiver: Address, amount: UFix64 )
     pub event TicketRecordChanged(address: Address , before: [UInt64], after: [UInt64])
     pub event CommisionSended(paymentId: UInt64, identifier: String, amount: UFix64)
+
+
     /**    ____ ___ ____ ___ ____
        *   [__   |  |__|  |  |___
         *  ___]  |  |  |  |  |___
@@ -166,81 +168,8 @@ pub contract Melody {
             metadata["ticketInfo"] = nftMetadata
             return metadata
         }
-
         
-
-        // === write funcs ===
-        // rrevoke payment
-        pub fun revokePayment(userCertificateCap: Capability<&{Melody.IdentityCertificate}>): @FungibleToken.Vault {
-            pre {
-                self.status != PaymentStatus.COMPLETE && self.status != PaymentStatus.CANCELED : MelodyError.errorEncode(msg: "Cannot cancel close payment", err: MelodyError.ErrorCode.WRONG_LIFE_CYCLE_STATE)
-                self.creator == userCertificateCap.borrow()!.owner!.address : MelodyError.errorEncode(msg: "Only owner can revokePayment", err: MelodyError.ErrorCode.ACCESS_DENIED)
-                self.type == PaymentType.REVOCABLE_STREAM || self.type == Melody.PaymentType.REVOCABLE_VESTING : MelodyError.errorEncode(msg: "Only revocable payment can be revoked", err: MelodyError.ErrorCode.PAYMENT_NOT_REVOKABLE)
-            }
-
-            let balance = self.vault.balance
-            self.status = PaymentStatus.CANCELED
-            Melody.updateTicketMetadata(id: self.id, key: "status", value: PaymentStatus.CANCELED.rawValue)
-            
-            emit PaymentRevoked(paymentId: self.id, amount: balance, operator: self.creator)
-
-            return <- self.vault.withdraw(amount: balance)
-        }
-
-        // cache ticket while receiver do not have receievr resource
-        access(contract) fun chacheTicket(ticket: @MelodyTicket.NFT) {
-            pre {
-                self.ticket == nil : MelodyError.errorEncode(msg: "Ticket already cached", err: MelodyError.ErrorCode.ALREADY_EXIST)
-            }
-
-            let receievr = (self.config["receiver"] as? Address?)!
-
-            emit TicketCached(paymentId: self.id, ticketId: ticket.id, receiver: receievr!)
-
-            self.ticket <-! ticket
-        }
-
-        // cache ticket while receiver do not have receievr resource
-        access(contract) fun claimTicket():@MelodyTicket.NFT {
-            pre {
-                self.ticket != nil : MelodyError.errorEncode(msg: "Ticket already cached", err: MelodyError.ErrorCode.ALREADY_EXIST)
-            }
-            let ticket <- self.ticket <- nil
-            self.config.remove(key: "receiver")
-
-            return <- ticket!
-        }
-
-        // cache ticket while receiver do not have receievr resource
-        access(contract) fun updateConfig(_ key: String, value: AnyStruct) {
-            pre {
-                self.config[key] != nil : MelodyError.errorEncode(msg: "Not set vaule", err: MelodyError.ErrorCode.NOT_EXIST)
-            }
-            let oldVal = self.config[key]
-            self.config[key] = value
-
-            emit PaymentConfigUpdated(paymentId: self.id, key: key)
-
-        }
-
-        // cache ticket while receiver do not have receievr resource
-        access(contract) fun changeRevocable() {
-            pre {
-                self.status != PaymentStatus.COMPLETE && self.status != PaymentStatus.CANCELED : MelodyError.errorEncode(msg: "Cannot change close payment ", err: MelodyError.ErrorCode.WRONG_LIFE_CYCLE_STATE)
-            }
-            let oldType = self.type
-            var type = oldType
-            if oldType == PaymentType.REVOCABLE_STREAM {
-                type = PaymentType.STREAM
-            } else if oldType == PaymentType.REVOCABLE_VESTING {
-                type = PaymentType.VESTING
-            } 
-            assert(oldType != type, message: MelodyError.errorEncode(msg: "Canot set same type", err: MelodyError.ErrorCode.INVALID_PARAMETERS))
-            self.type = type
-
-            emit PaymentTypeChanged(paymentId: self.id, oldType: oldType.rawValue, newType: type.rawValue)
-        }
-
+        // get payment claimable amount
         access(contract) fun getClaimable(): UFix64 {
             
             let config = self.config
@@ -292,16 +221,88 @@ pub contract Melody {
 
                 vested = vested + (UFix64(stepPassed) * stepAmount)
                 claimable = vested
-                
             }
 
             return claimable
         }
 
+        
+
+        // === write funcs ===
+        // revoke payment
+        pub fun revokePayment(userCertificateCap: Capability<&{Melody.IdentityCertificate}>): @FungibleToken.Vault {
+            pre {
+                self.status != PaymentStatus.COMPLETE && self.status != PaymentStatus.CANCELED : MelodyError.errorEncode(msg: "Cannot cancel close payment", err: MelodyError.ErrorCode.WRONG_LIFE_CYCLE_STATE)
+                self.creator == userCertificateCap.borrow()!.owner!.address : MelodyError.errorEncode(msg: "Only owner can revokePayment", err: MelodyError.ErrorCode.ACCESS_DENIED)
+                self.type == PaymentType.REVOCABLE_STREAM || self.type == Melody.PaymentType.REVOCABLE_VESTING : MelodyError.errorEncode(msg: "Only revocable payment can be revoked", err: MelodyError.ErrorCode.PAYMENT_NOT_REVOKABLE)
+            }
+
+            let balance = self.vault.balance
+            self.status = PaymentStatus.CANCELED
+            Melody.updateTicketMetadata(id: self.id, key: "status", value: PaymentStatus.CANCELED.rawValue)
+            
+            emit PaymentRevoked(paymentId: self.id, amount: balance, operator: self.creator)
+
+            return <- self.vault.withdraw(amount: balance)
+        }
+
+        // cache ticket while receiver do not have receievr resource
+        access(contract) fun chacheTicket(ticket: @MelodyTicket.NFT) {
+            pre {
+                self.ticket == nil : MelodyError.errorEncode(msg: "Ticket already cached", err: MelodyError.ErrorCode.ALREADY_EXIST)
+            }
+
+            let receievr = (self.config["receiver"] as? Address?)!
+
+            emit TicketCached(paymentId: self.id, ticketId: ticket.id, receiver: receievr!)
+
+            self.ticket <-! ticket
+        }
+
+        // claim cache ticket 
+        access(contract) fun claimTicket():@MelodyTicket.NFT {
+            pre {
+                self.ticket != nil : MelodyError.errorEncode(msg: "Ticket already cached", err: MelodyError.ErrorCode.ALREADY_EXIST)
+            }
+            let ticket <- self.ticket <- nil
+            self.config.remove(key: "receiver")
+
+            return <- ticket!
+        }
+
+        // update payment config
+        access(contract) fun updateConfig(_ key: String, value: AnyStruct) {
+            pre {
+                self.config[key] != nil : MelodyError.errorEncode(msg: "Not set vaule", err: MelodyError.ErrorCode.NOT_EXIST)
+            }
+            let oldVal = self.config[key]
+            self.config[key] = value
+
+            emit PaymentConfigUpdated(paymentId: self.id, key: key)
+
+        }
+
+        // change the payment to non-revocable
+        access(contract) fun changeRevocable() {
+            pre {
+                self.status != PaymentStatus.COMPLETE && self.status != PaymentStatus.CANCELED : MelodyError.errorEncode(msg: "Cannot change close payment ", err: MelodyError.ErrorCode.WRONG_LIFE_CYCLE_STATE)
+            }
+            let oldType = self.type
+            var type = oldType
+            if oldType == PaymentType.REVOCABLE_STREAM {
+                type = PaymentType.STREAM
+            } else if oldType == PaymentType.REVOCABLE_VESTING {
+                type = PaymentType.VESTING
+            } 
+            assert(oldType != type, message: MelodyError.errorEncode(msg: "Canot set same type", err: MelodyError.ErrorCode.INVALID_PARAMETERS))
+            self.type = type
+            Melody.updateTicketMetadata(id: self.id, key: "paymentInfo", value: self.config)
+            Melody.updateTicketMetadata(id: self.id, key: "paymentType", value: type.rawValue)
+            emit PaymentTypeChanged(paymentId: self.id, oldType: oldType.rawValue, newType: type.rawValue)
+        }
 
 
-
-        // withdraw
+        // withdraw from payment
         access(contract) fun withdraw(_ amount: UFix64): @FungibleToken.Vault {
             pre {
                 self.status != PaymentStatus.COMPLETE && self.status != PaymentStatus.CANCELED : MelodyError.errorEncode(msg: "Cannot update close payment", err: MelodyError.ErrorCode.WRONG_LIFE_CYCLE_STATE)
@@ -311,6 +312,7 @@ pub contract Melody {
             return <- self.vault.withdraw(amount: amount)
         }
 
+        // update payment status
         access(self) fun updateStatus() {
 
             let currentTimestamp = getCurrentBlock().timestamp
@@ -318,7 +320,7 @@ pub contract Melody {
             
             let oldStatus = self.status
             var status = oldStatus
-            // update status when stream start
+            // update stream status
             if self.type == PaymentType.STREAM || self.type == PaymentType.REVOCABLE_STREAM {
                 let endTimestamp = (self.config["endTimestamp"] as? UFix64?)!!
 
@@ -382,6 +384,7 @@ pub contract Melody {
             self.vaults <- {}
         }
 
+
         pub fun setPause(_ flag: Bool) {
             pre {
                 Melody.pause != flag : MelodyError.errorEncode(msg: "Set pause state faild, the state is same", err: MelodyError.ErrorCode.SAME_BOOL_STATE)
@@ -403,11 +406,12 @@ pub contract Melody {
             Melody.minimumPayment = min
         }
 
+        // minimal time duration in timpstamp
         pub fun setGraceDuration(_ duration: UFix64) {
             emit GraceDurationChanged(before: Melody.graceDuration, after: duration)
             Melody.graceDuration = duration
         }
-        
+        // get payment ref
         pub fun getPayment(_ id: UInt64): &Payment {
             pre{
                 self.payments[id] != nil : MelodyError.errorEncode(msg: "Payment not found", err: MelodyError.ErrorCode.NOT_EXIST)
@@ -416,6 +420,7 @@ pub contract Melody {
             return paymentRef
         }
 
+        // save payment
         pub fun savePayment(_ payment: @Payment) {
             pre {
                 self.payments[payment.id] == nil : MelodyError.errorEncode(msg: "Payment already exists", err: MelodyError.ErrorCode.ALREADY_EXIST)
@@ -423,7 +428,7 @@ pub contract Melody {
             self.payments[payment.id] <-! payment
         }
 
-
+        // deposite service fee
         pub fun deposit(_ vault: @FungibleToken.Vault) {
             let identifier = vault.getType().identifier
             if self.vaults[identifier] == nil {
@@ -436,7 +441,7 @@ pub contract Melody {
             }
 
         }
-
+        // withdraw service fee
         pub fun withdraw(_ key: String?, amount: UFix64?): @{String: FungibleToken.Vault} {
             let vaults: @{String: FungibleToken.Vault} <- {}
             var keys: [String] = []
@@ -459,9 +464,6 @@ pub contract Melody {
                 return <- vaults
             }
         }
-       
-        
-
 
         destroy() {
             destroy self.payments
@@ -471,14 +473,14 @@ pub contract Melody {
     }
 
    
-    // ---- contract methods ----
+    // ---- contract funcs ----
 
     pub fun setupUser(): @UserCertificate {
         let certificate <- create UserCertificate()
         return <- certificate
     }
 
-    // update nft metadata
+    // update ticket metadata
     access(account) fun updateTicketMetadata(id: UInt64, key: String, value: AnyStruct) {
         pre {
             MelodyTicket.getMetadata(id) != nil : MelodyError.errorEncode(msg: "Ticket not found", err: MelodyError.ErrorCode.NOT_EXIST)
@@ -486,7 +488,7 @@ pub contract Melody {
         MelodyTicket.updateMetadata(id: id, key: key, value: value)
     }
 
-    // set metadata
+    // set ticket metadata
     access(account) fun setTicketMetadata(id: UInt64, metadata: {String: AnyStruct}) {
         pre {
             MelodyTicket.getMetadata(id) == nil : MelodyError.errorEncode(msg: "Ticket already exist", err: MelodyError.ErrorCode.ALREADY_EXIST)
@@ -494,7 +496,7 @@ pub contract Melody {
         MelodyTicket.setMetadata(id: id, metadata: metadata)
     }
 
-    // set payments records
+    // update payments records
     access(account) fun updatePaymentsRecords(address: Address, id: UInt64) {
         let ids = self.paymentsRecords[address] ?? []
         var newIds = ids
@@ -505,15 +507,17 @@ pub contract Melody {
     }
 
 
-    /// create stream 
+    // create stream 
     /**
-     ** @param userCertificateCap - creator cap to proof there identity
+     ** @param userCertificateCap - creator cap to proof their identity
      ** @param vault - contain the FT token to steam
      ** @param receiver - the receiver address
      ** @param revocable - stream can be revoke or not
      ** @param config - config of create a stream
+        ** @param vaultIdentifier - the identifier of FT token's storagePath
         ** @param startTimestamp - start time of stream
         ** @param endTimestamp - end time of stream
+        ** @param transferable - 
         ** @param desc - desc of stream
      */
     pub fun createStream(userCertificateCap: Capability<&{Melody.IdentityCertificate}>, vault: @FungibleToken.Vault, receiver: Address, revocable: Bool, config: {String: AnyStruct}) {
@@ -581,6 +585,7 @@ pub contract Melody {
          // info for nft ticket
         let nftMetadata: {String: AnyStruct} = {}
         nftMetadata["creator"] = creator
+        nftMetadata["description"] = desc
 
         emit PaymentCreated(paymentId: paymentRef.id, type: type.rawValue, creator: creator, receiver: receiver, amount: balance )
 
@@ -591,12 +596,27 @@ pub contract Melody {
         if recipient != nil {
             recipient!.deposit(token: <- nft)
         } else {
-                self.updateUserTicketsRecord(address: receiver, id: paymentRef.id, isDelete: false )
+            self.updateUserTicketsRecord(address: receiver, id: paymentRef.id, isDelete: false )
             paymentRef.chacheTicket(ticket: <- nft)
         }
     }
 
-     /// create vesting
+    // create vesting 
+    /**
+     ** @param userCertificateCap - creator cap to proof their identity
+     ** @param vault - contain the FT token to vesting
+     ** @param receiver - the receiver address
+     ** @param revocable - vesting can be revoke or not
+     ** @param config - config of create a vesting
+        ** @param vaultIdentifier - the identifier of FT token's storagePath
+        ** @param startTimestamp - start time of vesting
+        ** @param cliffDuration - duration after startTimestamp to cliff
+        ** @param cliffAmount - amount to cliff
+        ** @param stepDuration - duration each steps
+        ** @param steps - steps of vesting
+        ** @param stepAmount - amount of vesting step
+        ** @param desc - desc of vesting
+     */
     pub fun createVesting(userCertificateCap: Capability<&{Melody.IdentityCertificate}>, vault: @FungibleToken.Vault, receiver: Address, revocable: Bool, config: {String: AnyStruct}) {
         pre {
             vault.balance > Melody.minimumPayment : MelodyError.errorEncode(msg: "Vault balance must be greater than 0", err: MelodyError.ErrorCode.CAN_NOT_BE_ZERO)
@@ -632,15 +652,16 @@ pub contract Melody {
         let vaultIdentifier = (config["vaultIdentifier"] as? String?)!! 
 
         assert(stepAmount >= Melody.minimumPayment, message: MelodyError.errorEncode(msg: "Step amount must be greater than minimum payment", err: MelodyError.ErrorCode.INVALID_PARAMETERS))
-        // assert(vaultIdentifier != "", message: MelodyError.errorEncode(msg: "Must have vaultIdentifier", err: MelodyError.ErrorCode.INVALID_PARAMETERS))
+        assert(vaultIdentifier != "", message: MelodyError.errorEncode(msg: "Must have vaultIdentifier", err: MelodyError.ErrorCode.INVALID_PARAMETERS))
         // assert(cliffAmount > 0.0 && cliffDuration + startTimestamp > currentTimestamp, message: MelodyError.errorEncode(msg: "Start time must be greater than current time", err: MelodyError.ErrorCode.INVALID_PARAMETERS))
         if cliffAmount > 0.0 || cliffDuration > 0.0 {
             assert(cliffAmount > 0.0 && cliffDuration > 0.0, message: MelodyError.errorEncode(msg: "Cliff amount and duration invalid", err: MelodyError.ErrorCode.INVALID_PARAMETERS))
-            // assert(cliffAmount > 0.0 && cliffDuration + startTimestamp > currentTimestamp, message: MelodyError.errorEncode(msg: "Start time must be greater than current time", err: MelodyError.ErrorCode.INVALID_PARAMETERS))
+            assert(cliffDuration % 1.0 == 0.0, message: MelodyError.errorEncode(msg: "Cliff duration can not be a decimal ", err: MelodyError.ErrorCode.INVALID_PARAMETERS))
         }
         assert(balance >= totalAmount, message: MelodyError.errorEncode(msg: "Valut balance not enougth - balance: ".concat(balance.toString()).concat("required: ").concat(totalAmount.toString()), err: MelodyError.ErrorCode.INVALID_PARAMETERS))
         assert(currentTimestamp + Melody.graceDuration <= startTimestamp, message: MelodyError.errorEncode(msg: "Start time must be greater than current time with grace period, currentTimestamp: ".concat(currentTimestamp.toString()).concat(" startTimestamp: ").concat(startTimestamp.toString()), err: MelodyError.ErrorCode.INVALID_PARAMETERS))
         assert(stepDuration >=  Melody.graceDuration, message: MelodyError.errorEncode(msg: "Step duration must be greater than grace period", err: MelodyError.ErrorCode.INVALID_PARAMETERS))
+        assert(stepDuration % 1.0 == 0.0, message: MelodyError.errorEncode(msg: "Step duration can not be a decimal ", err: MelodyError.ErrorCode.INVALID_PARAMETERS))
 
         if recipient == nil {
            config["receiver"] = receiver
@@ -675,12 +696,14 @@ pub contract Melody {
         // info for nft ticket
         let nftMetadata: {String: AnyStruct} = {}
         nftMetadata["creator"] = creator
+        nftMetadata["description"] = desc
 
         emit PaymentCreated(paymentId: paymentRef.id, type: type.rawValue, creator: creator, receiver: receiver, amount: balance )
         let nft <- ticketMinter.mintNFT(name: name, description: desc, metadata: nftMetadata)
 
         self.setTicketMetadata(id: nft.id, metadata: metadata)
 
+        // cache the ticket nft while the receiver dont have resource
         if recipient != nil {
             recipient!.deposit(token: <- nft)
         } else {
@@ -688,27 +711,6 @@ pub contract Melody {
             self.updateUserTicketsRecord(address: receiver, id:paymentRef.id, isDelete: false )
         }
     }
-
-    // todo update
-    // pub fun updatePayment(userCertificateCap: Capability<&{Melody.IdentityCertificate}>, paymentId: UInt64, config: {String: AnyStruct}) {
-    //     pre {
-    //         self.paymentsRecords[userCertificateCap.borrow()!.owner!.address]!.contains(paymentId): MelodyError.errorEncode(msg: "Access denied when update payment info", err: MelodyError.ErrorCode.ACCESS_DENIED)
-    //     }
-
-    //     let paymentRef = self.account.borrow<&Admin>(from: self.AdminStoragePath)!.getPayment(paymentId)
-    //     let config = paymentRef.config
-    //     // todo make sure modify 
-    //     if paymentRef.status == PaymentStatus.UPCOMING {
-    //         let desc = (config["desc"] as? String)
-    //         if desc != nil {
-    //             paymentRef.updateConfig("desc", value: desc)
-    //         }
-    //     }
-
-        
-        
-    // }
-
 
     // change payment revocable to non-revocable
     pub fun revokePayment(userCertificateCap: Capability<&{Melody.IdentityCertificate}>, paymentId: UInt64): @FungibleToken.Vault {
@@ -752,6 +754,7 @@ pub contract Melody {
 
     }
 
+    // claim cached ticket
     pub fun claimTicket(userCertificateCap: Capability<&{Melody.IdentityCertificate}>, paymentId: UInt64): @MelodyTicket.NFT {
         pre {
             self.getUserTicketRecords(userCertificateCap.borrow()!.owner!.address)!.contains(paymentId): MelodyError.errorEncode(msg: "Access denied when claim ticket", err: MelodyError.ErrorCode.ACCESS_DENIED)
@@ -771,7 +774,7 @@ pub contract Melody {
         return <- paymentRef.claimTicket()
     }
 
-
+    // withdraw funds from payment
     pub fun withdraw(userCertificateCap: Capability<&{Melody.IdentityCertificate}>, ticket: &MelodyTicket.NFT): @FungibleToken.Vault {
         pre {
             userCertificateCap.borrow()!.owner!.address == ticket.owner!.address : MelodyError.errorEncode(msg: "Withdraw ", err: MelodyError.ErrorCode.ACCESS_DENIED)
@@ -790,7 +793,7 @@ pub contract Melody {
         return <- vault!
     }
 
-    // stream withdraw
+    // stream payment withdraw
     access(contract) fun withdrawStream(ticket: &MelodyTicket.NFT): @FungibleToken.Vault {
 
         let paymentRef = self.account.borrow<&Admin>(from: self.AdminStoragePath)!.getPayment(ticket.id)
@@ -824,7 +827,7 @@ pub contract Melody {
         return <- withdrawVault
     }
     
-    // vesting withdraw
+    // vesting payment withdraw
     access(contract) fun withdrawVesting(ticket: &MelodyTicket.NFT): @FungibleToken.Vault {
         let paymentRef = self.account.borrow<&Admin>(from: self.AdminStoragePath)!.getPayment(ticket.id)
         let paymentType = paymentRef.type
@@ -854,7 +857,7 @@ pub contract Melody {
         return <- withdrawVault
     }
 
-
+    // cut commision at withdraw
     access(contract) fun cutCommision(_ vaultRef: &FungibleToken.Vault, paymentId: UInt64){
         if self.melodyCommision > 0.0 {
             let adminRef = self.account.borrow<&Admin>(from: self.AdminStoragePath)!
@@ -865,6 +868,7 @@ pub contract Melody {
         }
     }
 
+    // update ticket record
     access(contract) fun updateUserTicketsRecord(address: Address, id: UInt64, isDelete: Bool){
         if isDelete == true && Melody.userTicketRecords[address]!.contains(id) == false {
             panic(MelodyError.errorEncode(msg: "Delete failed: record not existed", err: MelodyError.ErrorCode.INVALID_PARAMETERS))
@@ -884,12 +888,13 @@ pub contract Melody {
         emit TicketRecordChanged(address: address , before: userTicketRecords, after: newRecords)
     }
 
-
+    // query creator's payment ids
     pub fun getPaymentsIdRecords(_ address: Address): [UInt64] {
         let ids = self.paymentsRecords[address] ?? []
         return ids
     }
 
+    // query payment info
     pub fun getPaymentInfo(_ id: UInt64): {String: AnyStruct} {
         var info: {String: AnyStruct}  = {}
         let paymentRef = self.account.borrow<&Admin>(from: self.AdminStoragePath)!.getPayment(id)
@@ -899,6 +904,7 @@ pub contract Melody {
         return info
     }
 
+    // get user unclaim ticket records
     pub fun getUserTicketRecords(_ address: Address): [UInt64] {
         let ids = self.userTicketRecords[address] ?? []
         return ids
@@ -936,3 +942,4 @@ pub contract Melody {
     }
 
 }
+ 

@@ -1,15 +1,7 @@
-/* 
-*
-*  This is an example implementation of a Flow Non-Fungible Token
-*  It is not part of the official standard but it assumed to be
-*  similar to how many NFTs would implement the core functionality.
-*
-*  This contract does not implement any sophisticated classification
-*  system for its NFTs. It defines a simple NFT with minimal metadata.
-*   
-*/
+
 
 import NonFungibleToken from "./standard/NonFungibleToken.cdc"
+import FungibleToken from "./standard/FungibleToken.cdc"
 import MetadataViews from "./standard/MetadataViews.cdc"
 import MelodyError from "./MelodyError.cdc"
 
@@ -91,9 +83,9 @@ pub contract MelodyTicket: NonFungibleToken {
             if MelodyTicket.baseURI != "" {
                 self.thumbnail = MelodyTicket.baseURI.concat(id.toString())
             } else {
-                self.thumbnail = ""
+                self.thumbnail = "https://testnet.melody.im/"
             }
-            self.royalties = [] // get from metadata
+            self.royalties = []
             self.metadata = metadata
         }
 
@@ -109,7 +101,6 @@ pub contract MelodyTicket: NonFungibleToken {
         pub fun getMetadata(): {String: AnyStruct} {
 
             let metadata = MelodyTicket.predefinedMetadata[self.id] ?? {}
-            // todo add upgradeinfo
             metadata["metadata"] = self.metadata
             return metadata
         }
@@ -128,11 +119,28 @@ pub contract MelodyTicket: NonFungibleToken {
         }
 
         pub fun resolveView(_ view: Type): AnyStruct? {
+            let metadata = MelodyTicket.predefinedMetadata[self.id] ?? {}
+            let transferable = (metadata["transferable"] as? Bool?)! ?? true
+            let paymentType = (metadata["paymentType"] as? UInt8?)!
+            let revocable = paymentType == 0 || paymentType == 0
+
             switch view {
                 case Type<MetadataViews.Display>():
+                    var desc = "\n"
+                    if transferable {
+                        desc = desc.concat("Transferable \n")
+                    } else {
+                        desc = desc.concat("Cannot transfer \n")
+                    }
+                    if revocable {
+                        desc = desc.concat("Revocable \n")
+                    } else {
+                        desc = desc.concat("Cannot revoke \n")
+                    }
+
                     return MetadataViews.Display(
                         name: self.name,
-                        description: self.description,
+                        description: self.description.concat(desc),
                         thumbnail: MetadataViews.HTTPFile(
                             url: self.thumbnail
                         )
@@ -150,11 +158,12 @@ pub contract MelodyTicket: NonFungibleToken {
                         self.id
                     )
                 case Type<MetadataViews.Royalties>():
-                    return MetadataViews.Royalties(
-                        self.royalties
-                    )
+                    let receieverCap = MelodyTicket.account.getCapability<&{FungibleToken.Receiver}>(/public/flowTokenReceiver)
+                    let royalty= MetadataViews.Royalty(receiver: receieverCap, cut: 0.03, description: "LyricLabs will take 3% as second trade royalty fee")
+                    return MetadataViews.Royalties([royalty])
+
                 case Type<MetadataViews.ExternalURL>(): // todo
-                    return MetadataViews.ExternalURL("https://example-nft.onflow.org/".concat(self.id.toString()))
+                    return MetadataViews.ExternalURL("https://melody.im/payment/".concat(self.id.toString()))
                 case Type<MetadataViews.NFTCollectionData>():
                     return MetadataViews.NFTCollectionData(
                         storagePath: MelodyTicket.CollectionStoragePath,
@@ -168,30 +177,26 @@ pub contract MelodyTicket: NonFungibleToken {
                         })
                     )
                 case Type<MetadataViews.NFTCollectionDisplay>():
-                    let media = MetadataViews.Media(
-                        file: MetadataViews.HTTPFile( 
-                            url: "" // todo
-                        ),
-                        mediaType: "image/svg+xml"
-                    )
+                    
                     return MetadataViews.NFTCollectionDisplay(
                         name: "The Melody ticket NFT",
                         description: "This collection is Melody ticket NFT.",
                         externalURL: MetadataViews.ExternalURL(""), // todo
                         squareImage: MetadataViews.Media(
                             file: MetadataViews.HTTPFile(
-                                url:"" // todo
+                                url:"https://trello.com/1/cards/62dd12a167854020143ccd01/attachments/631422356f0fe60111e1ed3c/previews/631422366f0fe60111e1ed43/download/image.png" // todo
                             ),
                             mediaType: "image/png"
                         ),
                         bannerImage: MetadataViews.Media(
                             file: MetadataViews.HTTPFile(
-                                url: "" // todo
+                                url: "https://trello.com/1/cards/62dd12a167854020143ccd01/attachments/631423e7c7e6b800d710f2a1/download/image.png" // todo
                             ),
                             mediaType: "image/png"
                         ),
                         socials: {
-                            "twitter": MetadataViews.ExternalURL("") // todo
+                            "twitter": MetadataViews.ExternalURL("https://twitter.com/lyric_labs"),
+                            "website": MetadataViews.ExternalURL("https://lyriclabs.xyz")
                         }
                     )
                 case Type<MetadataViews.Traits>():
@@ -358,15 +363,6 @@ pub contract MelodyTicket: NonFungibleToken {
             return <- newNFT
         }
         
-
-     
-        // UpdateMetadata
-        // Update metadata for a paymentId
-        //
-        // pub fun updateMetadata(id: UInt64, metadata: {String: AnyStruct}) {
-        //     MelodyTicket.predefinedMetadata[id] = metadata
-        // }
-
         pub fun setBaseURI(_ uri: String) {
             emit BaseURIUpdated(before: MelodyTicket.baseURI, after: uri )
             MelodyTicket.baseURI = uri

@@ -83,7 +83,7 @@ pub contract MelodyTicket: NonFungibleToken {
             if MelodyTicket.baseURI != "" {
                 self.thumbnail = MelodyTicket.baseURI.concat(id.toString())
             } else {
-                self.thumbnail = "https://testnet.melody.im/"
+                self.thumbnail = "https://testnet.melody.im/api/data/payment/".concat(self.id.toString()).concat("&width=600&height=400")
             }
             self.royalties = []
             self.metadata = metadata
@@ -142,7 +142,7 @@ pub contract MelodyTicket: NonFungibleToken {
                         name: self.name,
                         description: self.description.concat(desc),
                         thumbnail: MetadataViews.HTTPFile(
-                            url: self.thumbnail
+                            url: "https://testnet.melody.im/api/data/payment/".concat(self.id.toString()).concat("?width=600&height=400")
                         )
                     )
                 case Type<MetadataViews.Editions>():
@@ -184,7 +184,7 @@ pub contract MelodyTicket: NonFungibleToken {
                         externalURL: MetadataViews.ExternalURL(""), // todo
                         squareImage: MetadataViews.Media(
                             file: MetadataViews.HTTPFile(
-                                url:"https://trello.com/1/cards/62dd12a167854020143ccd01/attachments/631422356f0fe60111e1ed3c/previews/631422366f0fe60111e1ed43/download/image.png" // todo
+                                url:"https://trello.com/1/cards/62dd12a167854020143ccd01/attachments/631422356f0fe60111e1ed3c/previews/631422366f0fe60111e1ed43/download/image.png"
                             ),
                             mediaType: "image/png"
                         ),

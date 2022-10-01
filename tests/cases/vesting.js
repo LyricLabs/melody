@@ -200,14 +200,14 @@ export const vestingTestCases = () =>
 
     })
 
-    test('template', async () => {
+    test('test transfer and claim with other owners', async () => {
       let currentTimestamp = await buildAndExecScript('getTimestamp')
       let res = await buildAndSendTrx('createSimpleVesting', [
         fcl.arg('fusdVault', t.String),
         fcl.arg(true, t.Bool), // revocable
         fcl.arg(true, t.Bool), // transferable
         fcl.arg(test1Addr, t.Address), // receiver
-        fcl.arg((Number(currentTimestamp) + 5).toFixed(2), t.UFix64), // start time
+        fcl.arg((Number(currentTimestamp) + 1).toFixed(2), t.UFix64), // start time
         fcl.arg(5, t.Int8), // steps
         fcl.arg('3.0', t.UFix64), // step duration
         fcl.arg('20.0', t.UFix64), // step amount
@@ -221,7 +221,7 @@ export const vestingTestCases = () =>
       expect(res).not.toBeNull()
       expect(res.ticketInfo.owner).toBe(test1Addr)
 
-      await sleep(6500)
+      await sleep(5500)
       res = await buildAndSendTrx(
         'transferTicket',
         [fcl.arg(paymentId, t.UInt64), fcl.arg(test2Addr, t.Address)],

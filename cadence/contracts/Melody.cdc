@@ -105,7 +105,6 @@ pub contract Melody {
     }
 
     pub resource Payment {
-
         pub let id: UInt64
         pub var desc: String
         pub let creator: Address
@@ -116,10 +115,8 @@ pub contract Melody {
         pub var withdrawn: UFix64
         pub var status: PaymentStatus
 
-
         pub var metadata: {String: AnyStruct}
         
-
         init(id: UInt64, desc: String, creator: Address, type: PaymentType, vault: @FungibleToken.Vault, config: {String: AnyStruct}) {
             self.id = id
             self.desc = desc
@@ -155,7 +152,7 @@ pub contract Melody {
             metadata["claimed"] = self.ticket == nil
             metadata["creator"] = self.creator
             metadata["desc"] = self.desc
-            // metadata["config"] = self.config
+
             let keys = self.config.keys
             for key in keys {
                 metadata[key] = self.config[key]
@@ -259,8 +256,8 @@ pub contract Melody {
             self.ticket <-! ticket
         }
 
-        // claim cache ticket 
-        access(contract) fun claimTicket():@MelodyTicket.NFT {
+        // claim cached ticket 
+        access(contract) fun claimTicket(): @MelodyTicket.NFT {
             pre {
                 self.ticket != nil : MelodyError.errorEncode(msg: "Ticket already cached", err: MelodyError.ErrorCode.ALREADY_EXIST)
             }
@@ -374,7 +371,7 @@ pub contract Melody {
     // resources
     // melody admin resource for manage melody contract
     pub resource Admin {
-
+        // vaults for commission fee
         access(self) var vaults: @{String: FungibleToken.Vault}
 
         access(self) let payments: @{UInt64: Payment}
@@ -474,7 +471,7 @@ pub contract Melody {
 
    
     // ---- contract funcs ----
-
+    // init user certificate
     pub fun setupUser(): @UserCertificate {
         let certificate <- create UserCertificate()
         return <- certificate

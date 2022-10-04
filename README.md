@@ -29,3 +29,4 @@ The product ideation will be fully realized using Cadence, with the master smart
 
 Product logo
 ![](https://trello.com/1/cards/62dd12a167854020143ccd01/attachments/62f0c3e7b0401e250f0a5199/previews/62f0c3e7b0401e250f0a51df/download/melody-logo.png)
+

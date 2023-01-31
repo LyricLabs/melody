@@ -539,11 +539,11 @@ pub contract Melody {
 
         let balance = vault.balance
         let currentTimestamp = getCurrentBlock().timestamp
-        let startTimestamp = (config["startTimestamp"] as? UFix64?)!!
-        let endTimestamp = (config["endTimestamp"] as? UFix64?)!!
+        let startTimestamp = (config["startTimestamp"] as? UFix64?)! ?? panic(MelodyError.errorEncode(msg: "Start timestamp invalid", err: MelodyError.ErrorCode.INVALID_PARAMETERS))
+        let endTimestamp = (config["endTimestamp"] as? UFix64?)! ?? panic(MelodyError.errorEncode(msg: "Endt timestamp invalid", err: MelodyError.ErrorCode.INVALID_PARAMETERS))
         let transferable = (config["transferable"] as? Bool?)! ?? true
 
-        let vaultIdentifier = (config["vaultIdentifier"] as? String?)!! 
+        let vaultIdentifier = (config["vaultIdentifier"] as? String?)! ?? panic(MelodyError.errorEncode(msg: "Vault identifier invalid", err: MelodyError.ErrorCode.INVALID_PARAMETERS))
         assert(vaultIdentifier != "", message: MelodyError.errorEncode(msg: "Must have vaultIdentifier", err: MelodyError.ErrorCode.INVALID_PARAMETERS))
         assert(currentTimestamp + Melody.graceDuration <= startTimestamp, message: MelodyError.errorEncode(msg: "Start time must be greater than current time, currentTimestamp: ".concat(currentTimestamp.toString()).concat(" startTimestamp: ").concat(startTimestamp.toString()), err: MelodyError.ErrorCode.INVALID_PARAMETERS))
         assert(endTimestamp > startTimestamp + Melody.graceDuration, message: MelodyError.errorEncode(msg: "End time must be greater than current time", err: MelodyError.ErrorCode.INVALID_PARAMETERS))
@@ -636,17 +636,17 @@ pub contract Melody {
         // validate config
         let balance = vault.balance
         let currentTimestamp = getCurrentBlock().timestamp
-        let startTimestamp = (config["startTimestamp"] as? UFix64?)!!
+        let startTimestamp = (config["startTimestamp"] as? UFix64?)! ?? panic(MelodyError.errorEncode(msg: "Start timestamp invalid", err: MelodyError.ErrorCode.INVALID_PARAMETERS))
         let cliffDuration = (config["cliffDuration"] as? UFix64?)! ?? 0.0
         let cliffAmount = (config["cliffAmount"] as? UFix64?)! ?? 0.0
-        let stepDuration = (config["stepDuration"] as? UFix64?)!!
-        let steps = (config["steps"] as? Int8?)!!
-        let stepAmount = (config["stepAmount"] as? UFix64?)!!
+        let stepDuration = (config["stepDuration"] as? UFix64?)! ?? panic(MelodyError.errorEncode(msg: "Step duration invalid", err: MelodyError.ErrorCode.INVALID_PARAMETERS))
+        let steps = (config["steps"] as? Int8?)! ?? panic(MelodyError.errorEncode(msg: "Step invalid", err: MelodyError.ErrorCode.INVALID_PARAMETERS))
+        let stepAmount = (config["stepAmount"] as? UFix64?)! ?? panic(MelodyError.errorEncode(msg: "Step amount invalid", err: MelodyError.ErrorCode.INVALID_PARAMETERS))
         let transferable = (config["transferable"] as? Bool?)! ?? true
         assert(steps >= 1, message: MelodyError.errorEncode(msg: "Step must greater than 0", err: MelodyError.ErrorCode.INVALID_PARAMETERS))
 
         let totalAmount = cliffAmount + UFix64(steps) * stepAmount!
-        let vaultIdentifier = (config["vaultIdentifier"] as? String?)!! 
+        let vaultIdentifier = (config["vaultIdentifier"] as? String?)! ?? panic(MelodyError.errorEncode(msg: "Vault identifier invalid", err: MelodyError.ErrorCode.INVALID_PARAMETERS)) 
 
         assert(stepAmount >= Melody.minimumPayment, message: MelodyError.errorEncode(msg: "Step amount must be greater than minimum payment", err: MelodyError.ErrorCode.INVALID_PARAMETERS))
         assert(vaultIdentifier != "", message: MelodyError.errorEncode(msg: "Must have vaultIdentifier", err: MelodyError.ErrorCode.INVALID_PARAMETERS))
